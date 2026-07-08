@@ -11,6 +11,7 @@ class PieceType:
 
 
 def _pawn_can_move(dr, dc, context):
+    """Pawn movement: forward one step, two from start, diagonal capture only."""
     color       = context['color']
     target      = context['target']
     is_at_start = context['is_at_start']

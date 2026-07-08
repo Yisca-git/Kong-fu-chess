@@ -3,6 +3,7 @@ from pieces import PIECE_TYPES
 
 
 def is_legal_move(piece_symbol, from_row, from_col, to_row, to_col, board):
+    """Returns True if the move is legal for the given piece type and board state."""
     dr = to_row - from_row
     dc = to_col - from_col
 
@@ -24,6 +25,7 @@ def is_legal_move(piece_symbol, from_row, from_col, to_row, to_col, board):
     color       = current[0]
     is_at_start = (from_row == board.rows - 2) if color == 'w' else (from_row == 1)
 
+    # Knight and King don't need path checking — Knight jumps over pieces, King moves one square
     needs_path = piece_symbol in ('R', 'B', 'Q', 'P')
     context = {
         'color':       color,

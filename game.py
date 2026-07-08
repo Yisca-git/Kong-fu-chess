@@ -16,6 +16,8 @@ class KungFuChess:
     # ── private helpers ───────────────────────────────────────────────────
 
     def _piece_at(self, row, col):
+        # Airborne pieces are removed from the board, so check both sources
+        """Returns the piece at a square, including pieces currently airborne over it."""
         piece = self._board.get(row, col)
         if piece != EMPTY:
             return piece
@@ -25,9 +27,11 @@ class KungFuChess:
         return EMPTY
 
     def _is_piece_moving(self, row, col):
+        """Returns True if the piece at this square has a pending move in flight."""
         return any(m['from'] == (row, col) for m in self.pending_moves)
 
     def _has_opponent_moving(self, color):
+        """Returns True if the opponent currently has any piece in motion."""
         return any(m['piece'][0] != color for m in self.pending_moves)
 
     def _board_view_for(self, row, col, piece):
@@ -52,6 +56,8 @@ class KungFuChess:
         return _AirborneProxy(self._board, row, col, piece)
 
     def _try_capture_by_jump(self, to_r, to_c, piece_color, from_r, from_c, moving_piece):
+        # If an attacker arrives while an enemy piece is airborne over the same square,
+        # the jumping piece lands on the attacker and captures it instead
         for jump in self.airborne:
             if (jump['row'] == to_r and jump['col'] == to_c
                     and jump['piece'][0] != piece_color
@@ -64,6 +70,7 @@ class KungFuChess:
     # ── arrival / landing processing ─────────────────────────────────────
 
     def _process_arrivals(self):
+        """Resolves all moves whose arrival time matches the current game clock."""
         remaining = []
         for move in sorted(self.pending_moves, key=lambda m: m['arrival']):
             if move['arrival'] != self.game_clock:
@@ -87,6 +94,8 @@ class KungFuChess:
                 if to_r == last_row:
                     moving_piece = f"{piece_color}Q"
 
+            # Only clear the source square if the piece hasn't already been removed
+            # (e.g. captured mid-flight by another move resolving at the same tick)
             if self._board.get(from_r, from_c) == move['piece']:
                 self._board.set(from_r, from_c, EMPTY)
             self._board.set(to_r, to_c, moving_piece)
@@ -94,6 +103,7 @@ class KungFuChess:
         self.pending_moves = remaining
 
     def _process_landings(self):
+        """Places airborne pieces back on the board once their jump window expires."""
         still_airborne = []
         for jump in self.airborne:
             if jump['end'] > self.game_clock:
@@ -105,6 +115,7 @@ class KungFuChess:
     # ── public commands ───────────────────────────────────────────────────
 
     def select_or_move(self, row, col):
+        """Selects a piece or moves the selected piece to the target square."""
         if self.game_over:
             return
 
@@ -135,11 +146,13 @@ class KungFuChess:
             self.selected = None
 
     def handle_click(self, x, y):
+        """UI entry point: converts pixel coordinates to a board square and delegates to select_or_move."""
         col, row = x // TILE_SIZE, y // TILE_SIZE
         if self._board.in_bounds(row, col):
             self.select_or_move(row, col)
 
     def jump(self, row, col):
+        """Makes a piece airborne at its current square, allowing it to dodge incoming attackers."""
         if self.game_over:
             return
         piece = self._board.get(row, col)
@@ -158,14 +171,17 @@ class KungFuChess:
         self._board.set(row, col, EMPTY)
 
     def handle_jump(self, x, y):
+        """UI entry point: converts pixel coordinates to a board square and delegates to jump."""
         col, row = x // TILE_SIZE, y // TILE_SIZE
         if self._board.in_bounds(row, col):
             self.jump(row, col)
 
     def handle_wait(self, ms):
+        """Advances the game clock by ms, resolving all arrivals and landings in order."""
         target_time = self.game_clock + ms
 
         while self.game_clock < target_time and not self.game_over:
+            # Jump to the next event (arrival or landing) rather than ticking ms by ms
             next_event = target_time
             for m in self.pending_moves:
                 if self.game_clock < m['arrival'] <= next_event:
@@ -179,6 +195,7 @@ class KungFuChess:
             self._process_landings()
 
     def print_board(self):
+        """Prints the board to stdout, overlaying airborne pieces onto their squares."""
         snap = self._board.snapshot()
         for jump in self.airborne:
             r, c = jump['row'], jump['col']
