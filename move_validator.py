@@ -24,11 +24,12 @@ def is_legal_move(piece_symbol, from_row, from_col, to_row, to_col, board):
     color       = current[0]
     is_at_start = (from_row == board.rows - 2) if color == 'w' else (from_row == 1)
 
+    needs_path = piece_symbol in ('R', 'B', 'Q', 'P')
     context = {
         'color':       color,
         'target':      target,
         'is_at_start': is_at_start,
-        'path_clear':  board.is_path_clear(from_row, from_col, to_row, to_col),
+        'path_clear':  board.is_path_clear(from_row, from_col, to_row, to_col) if needs_path else False,
     }
 
     return piece_type.can_move(to_row - from_row, to_col - from_col, context)

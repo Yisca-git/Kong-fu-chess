@@ -1,4 +1,4 @@
-import sys
+from config import VALID_PIECES, VALID_COLORS, EMPTY
 
 def parse_and_validate_board(input_text):
     if not input_text:
@@ -15,20 +15,15 @@ def parse_and_validate_board(input_text):
     except ValueError:
         return None
 
-    # Validation constraints
-    valid_pieces = {'K', 'Q', 'R', 'B', 'N', 'P'}
-    valid_colors = {'w', 'b'}
     expected_width = len(raw_rows[0].split()) if raw_rows else 0
 
     for row in raw_rows:
         pieces_in_row = row.split()
-        # Validate row width mismatch
         if len(pieces_in_row) != expected_width:
             print("ERROR ROW_WIDTH_MISMATCH")
             return None
-        # Validate each individual piece format
         for piece in pieces_in_row:
-            if piece != '.' and (len(piece) != 2 or piece[0] not in valid_colors or piece[1] not in valid_pieces):
+            if piece != EMPTY and (len(piece) != 2 or piece[0] not in VALID_COLORS or piece[1] not in VALID_PIECES):
                 print("ERROR UNKNOWN_TOKEN")
                 return None
 

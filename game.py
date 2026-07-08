@@ -104,11 +104,8 @@ class KungFuChess:
 
     # ── public commands ───────────────────────────────────────────────────
 
-    def handle_click(self, x, y):
+    def select_or_move(self, row, col):
         if self.game_over:
-            return
-        col, row = x // TILE_SIZE, y // TILE_SIZE
-        if not self._board.in_bounds(row, col):
             return
 
         clicked = self._piece_at(row, col)
@@ -137,11 +134,13 @@ class KungFuChess:
                     })
             self.selected = None
 
-    def handle_jump(self, x, y):
-        if self.game_over:
-            return
+    def handle_click(self, x, y):
         col, row = x // TILE_SIZE, y // TILE_SIZE
-        if not self._board.in_bounds(row, col):
+        if self._board.in_bounds(row, col):
+            self.select_or_move(row, col)
+
+    def jump(self, row, col):
+        if self.game_over:
             return
         piece = self._board.get(row, col)
         if piece == EMPTY or self._is_piece_moving(row, col):
@@ -157,6 +156,11 @@ class KungFuChess:
             'end':   self.game_clock + JUMP_DURATION,
         })
         self._board.set(row, col, EMPTY)
+
+    def handle_jump(self, x, y):
+        col, row = x // TILE_SIZE, y // TILE_SIZE
+        if self._board.in_bounds(row, col):
+            self.jump(row, col)
 
     def handle_wait(self, ms):
         target_time = self.game_clock + ms

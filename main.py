@@ -1,3 +1,5 @@
+#https://github.com/Yisca-git/Kong-fu-chess  - My GitHub repository for this project
+
 import sys
 import board_parser
 from game import KungFuChess

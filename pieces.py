@@ -30,7 +30,7 @@ PIECE_TYPES = {
     'K': PieceType('K', MOVE_DURATION, lambda dr, dc, _: abs(dr) <= 1 and abs(dc) <= 1),
     'N': PieceType('N', MOVE_DURATION, lambda dr, dc, _: (abs(dr) == 1 and abs(dc) == 2) or (abs(dr) == 2 and abs(dc) == 1)),
     'R': PieceType('R', MOVE_DURATION, lambda dr, dc, ctx: (dr == 0 or dc == 0) and ctx['path_clear']),
-    'B': PieceType('B', MOVE_DURATION, lambda dr, dc, ctx: (dr == dc) and ctx['path_clear']),
-    'Q': PieceType('Q', MOVE_DURATION, lambda dr, dc, ctx: (dr == 0 or dc == 0 or dr == dc) and ctx['path_clear']),
+    'B': PieceType('B', MOVE_DURATION, lambda dr, dc, ctx: (abs(dr) == abs(dc)) and ctx['path_clear']),
+    'Q': PieceType('Q', MOVE_DURATION, lambda dr, dc, ctx: (dr == 0 or dc == 0 or abs(dr) == abs(dc)) and ctx['path_clear']),
     'P': PieceType('P', MOVE_DURATION, _pawn_can_move),
 }
