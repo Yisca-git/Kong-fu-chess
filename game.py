@@ -1,4 +1,4 @@
-from config import TILE_SIZE, JUMP_DURATION, EMPTY, WHITE
+from config import TILE_SIZE, JUMP_DURATION, EMPTY, WHITE, KING_SYMBOL, PAWN_SYMBOL, PROMOTED_PIECE
 from pieces import PIECE_TYPES
 from board import Board
 from move_validator import is_legal_move
@@ -67,6 +67,17 @@ class KungFuChess:
                 return True
         return False
 
+    def _is_king_capture(self, target, piece_color):
+        """Returns True if the target piece is an enemy king."""
+        return target != EMPTY and target[1] == KING_SYMBOL and target[0] != piece_color
+
+    def _apply_promotion(self, piece, to_r):
+        """Returns the promoted piece symbol if a pawn reached the last row, otherwise the original piece."""
+        if piece[1] != PAWN_SYMBOL:
+            return piece
+        last_row = 0 if piece[0] == WHITE else (self._board.rows - 1)
+        return f"{piece[0]}{PROMOTED_PIECE}" if to_r == last_row else piece
+
     # ── arrival / landing processing ─────────────────────────────────────
 
     def _process_arrivals(self):
@@ -86,13 +97,10 @@ class KungFuChess:
                 continue
 
             target = self._board.get(to_r, to_c)
-            if target != EMPTY and target[1] == 'K' and target[0] != piece_color:
+            if self._is_king_capture(target, piece_color):
                 self.game_over = True
 
-            if moving_piece[1] == 'P':
-                last_row = 0 if piece_color == WHITE else (self._board.rows - 1)
-                if to_r == last_row:
-                    moving_piece = f"{piece_color}Q"
+            moving_piece = self._apply_promotion(moving_piece, to_r)
 
             # Only clear the source square if the piece hasn't already been removed
             # (e.g. captured mid-flight by another move resolving at the same tick)
@@ -111,6 +119,32 @@ class KungFuChess:
             else:
                 self._board.set(jump['row'], jump['col'], jump['piece'])
         self.airborne = still_airborne
+
+    # ── public accessors ──────────────────────────────────────────────────
+
+    def cell_at(self, row, col):
+        """Returns the piece symbol at the given square, including airborne pieces."""
+        return self._piece_at(row, col)
+
+    def board_cell_at(self, row, col):
+        """Returns the piece symbol at the given square on the physical board only."""
+        return self._board.get(row, col)
+
+    def pending_count(self):
+        """Returns the number of moves currently in flight."""
+        return len(self.pending_moves)
+
+    def pending_destination(self, index):
+        """Returns the destination square of the pending move at the given index."""
+        return self.pending_moves[index]['to']
+
+    def pending_piece(self, index):
+        """Returns the piece symbol of the pending move at the given index."""
+        return self.pending_moves[index]['piece']
+
+    def airborne_count(self):
+        """Returns the number of pieces currently airborne."""
+        return len(self.airborne)
 
     # ── public commands ───────────────────────────────────────────────────
 

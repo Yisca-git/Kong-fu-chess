@@ -25,19 +25,15 @@ def is_legal_move(piece_symbol, from_row, from_col, to_row, to_col, board):
     color       = current[0]
     is_at_start = (from_row == board.rows - 2) if color == 'w' else (from_row == 1)
 
-    # Knight and King don't need path checking — Knight jumps over pieces, King moves one square
-    needs_path = piece_symbol in ('R', 'B', 'Q', 'P')
-    is_straight  = dr == 0 or dc == 0
-    is_diagonal  = abs(dr) == abs(dc)
-    path_valid   = (piece_symbol in ('R',) and is_straight) or \
-                   (piece_symbol in ('B',) and is_diagonal) or \
-                   (piece_symbol == 'Q' and (is_straight or is_diagonal)) or \
-                   (piece_symbol == 'P')
+    is_straight = dr == 0 or dc == 0
+    is_diagonal = abs(dr) == abs(dc)
+    path_valid  = is_straight or is_diagonal
     context = {
         'color':       color,
         'target':      target,
         'is_at_start': is_at_start,
-        'path_clear':  board.is_path_clear(from_row, from_col, to_row, to_col) if (needs_path and path_valid) else False,
+        'path_clear':  board.is_path_clear(from_row, from_col, to_row, to_col)
+                       if (piece_type.needs_path_check and path_valid) else False,
     }
 
     return piece_type.can_move(to_row - from_row, to_col - from_col, context)

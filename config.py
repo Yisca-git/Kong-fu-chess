@@ -13,3 +13,6 @@ VALID_COLORS = {'w', 'b'}
 EMPTY = '.'
 WHITE = 'w'
 BLACK = 'b'
+KING_SYMBOL = 'K'
+PAWN_SYMBOL = 'P'
+PROMOTED_PIECE = 'Q'

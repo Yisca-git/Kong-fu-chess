@@ -10,7 +10,7 @@ def make_game(rows):
     return KungFuChess(rows)
 
 def cell(game, row, col):
-    return game._board.get(row, col)
+    return game.cell_at(row, col)
 
 
 class TestSelection(unittest.TestCase):
@@ -89,8 +89,8 @@ class TestMovement(unittest.TestCase):
         ])
         g.select_or_move(6, 4)
         g.select_or_move(4, 4)
-        self.assertEqual(len(g.pending_moves), 1)
-        self.assertEqual(g.pending_moves[0]['to'], (4, 4))
+        self.assertEqual(g.pending_count(), 1)
+        self.assertEqual(g.pending_destination(0), (4, 4))
 
     def test_piece_arrives_at_destination(self):
         g = make_game([
@@ -124,7 +124,7 @@ class TestMovement(unittest.TestCase):
         g.select_or_move(5, 4)
         g.select_or_move(5, 4)
         g.select_or_move(4, 4)
-        self.assertEqual(len(g.pending_moves), 1)
+        self.assertEqual(g.pending_count(), 1)
 
     def test_pawn_promotion(self):
         g = make_game([
@@ -194,7 +194,7 @@ class TestCapture(unittest.TestCase):
         g.handle_wait(1000)
         g.select_or_move(4, 4)
         g.select_or_move(0, 4)
-        self.assertEqual(len(g.pending_moves), 0)
+        self.assertEqual(g.pending_count(), 0)
 
     def test_friendly_fire_blocked(self):
         g = make_game([
@@ -228,8 +228,8 @@ class TestJump(unittest.TestCase):
             '. . . . . . . .',
         ])
         g.jump(6, 4)
-        self.assertEqual(cell(g, 6, 4), '.')
-        self.assertEqual(len(g.airborne), 1)
+        self.assertEqual(g.board_cell_at(6, 4), '.')
+        self.assertEqual(g.airborne_count(), 1)
 
     def test_jump_lands_back(self):
         g = make_game([
@@ -245,7 +245,7 @@ class TestJump(unittest.TestCase):
         g.jump(6, 4)
         g.handle_wait(1000)
         self.assertEqual(cell(g, 6, 4), 'wP')
-        self.assertEqual(len(g.airborne), 0)
+        self.assertEqual(g.airborne_count(), 0)
 
     def test_attacker_captured_by_jump(self):
         g = make_game([
@@ -279,7 +279,7 @@ class TestJump(unittest.TestCase):
         g.select_or_move(6, 4)
         g.select_or_move(4, 4)
         g.jump(6, 4)
-        self.assertEqual(len(g.airborne), 0)
+        self.assertEqual(g.airborne_count(), 0)
 
     def test_cannot_jump_empty_square(self):
         g = make_game([
@@ -293,7 +293,7 @@ class TestJump(unittest.TestCase):
             '. . . . . . . .',
         ])
         g.jump(4, 4)
-        self.assertEqual(len(g.airborne), 0)
+        self.assertEqual(g.airborne_count(), 0)
 
 
 class TestUILayer(unittest.TestCase):
@@ -324,7 +324,7 @@ class TestUILayer(unittest.TestCase):
             '. . . . . . . .',
         ])
         g.handle_jump(400, 600)
-        self.assertEqual(len(g.airborne), 1)
+        self.assertEqual(g.airborne_count(), 1)
 
     def test_handle_click_out_of_bounds(self):
         g = make_game([

@@ -11,7 +11,7 @@ def make_game(rows):
     return KungFuChess(rows)
 
 def cell(game, row, col):
-    return game._board.get(row, col)
+    return game.cell_at(row, col)
 
 
 class TestPrintBoard(unittest.TestCase):
@@ -71,8 +71,8 @@ class TestOpponentMoving(unittest.TestCase):
         # white should be blocked while black is moving
         g.select_or_move(6, 4)
         g.select_or_move(5, 4)
-        self.assertEqual(len(g.pending_moves), 1)
-        self.assertEqual(g.pending_moves[0]['piece'], 'bR')
+        self.assertEqual(g.pending_count(), 1)
+        self.assertEqual(g.pending_piece(0), 'bR')
 
     def test_allowed_when_opponent_not_moving(self):
         g = make_game([
@@ -87,8 +87,8 @@ class TestOpponentMoving(unittest.TestCase):
         ])
         g.select_or_move(6, 4)
         g.select_or_move(5, 4)
-        self.assertEqual(len(g.pending_moves), 1)
-        self.assertEqual(g.pending_moves[0]['piece'], 'wP')
+        self.assertEqual(g.pending_count(), 1)
+        self.assertEqual(g.pending_piece(0), 'wP')
 
 
 class TestAirborneProxy(unittest.TestCase):
@@ -123,7 +123,7 @@ class TestAirborneProxy(unittest.TestCase):
         ])
         g.jump(6, 4)
         g.jump(6, 4)
-        self.assertEqual(len(g.airborne), 1)
+        self.assertEqual(g.airborne_count(), 1)
 
 
 if __name__ == '__main__':
