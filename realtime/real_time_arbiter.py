@@ -2,7 +2,6 @@ from model.board import Board
 from model.piece import Piece, PieceState, Kind
 from model.position import Position
 from realtime.motion import Motion
-
 from realtime.jump import Jump
 from rules.rules_registry import RULES_BY_KIND
 
@@ -56,41 +55,39 @@ class RealTimeArbiter:
                     next_event = j.land_time
             self._clock = min(next_event, target_time)
 
-            due_motions = [m for m in self._motions if m.arrival_time <= self._clock]
-            self._motions = [m for m in self._motions if m.arrival_time > self._clock]
+            due_motions   = [m for m in self._motions if m.arrival_time <= self._clock]
+            self._motions = [m for m in self._motions if m.arrival_time  > self._clock]
 
-            due_landings = [j for j in self._jumps if j.land_time <= self._clock]
-            self._jumps = [j for j in self._jumps if j.land_time > self._clock]
-
-            for motion in due_motions:
+            # process in reverse insertion order: first registered wins
+            for motion in reversed(due_motions):
                 if self._resolve_arrival(motion):
                     king_captured = True
 
+            due_landings = [j for j in self._jumps if j.land_time <= self._clock]
+            self._jumps  = [j for j in self._jumps if j.land_time  > self._clock]
             for jump in due_landings:
                 self._resolve_landing(jump)
 
         return king_captured
 
     def _resolve_arrival(self, motion: Motion) -> bool:
-        """Resolves a single arrival. If destination has an airborne piece, the jumper captures the attacker.
-        Returns True if a king was captured."""
+        """Resolves a single arrival. Returns True if a king was captured."""
         king_captured = False
 
-        # Check if an enemy piece is airborne over the destination
-        airborne_at_dest = next(
+        # enemy airborne on destination — jumper captures attacker
+        airborne_enemy = next(
             (j for j in self._jumps
              if j.cell == motion.destination and j.piece.color != motion.piece.color),
             None,
         )
-        if airborne_at_dest is not None:
-            # Jumper captures the attacker — remove attacker from motion, don't land it
+        if airborne_enemy is not None:
             self._board.remove_piece(motion.origin)
             if motion.piece.kind == Kind.KING:
                 king_captured = True
+            motion.piece.state = PieceState.CAPTURED
             return king_captured
 
         self._board.remove_piece(motion.origin)
-
         occupant = self._board.piece_at(motion.destination)
         if occupant is not None:
             if occupant.kind == Kind.KING:
@@ -100,16 +97,15 @@ class RealTimeArbiter:
         motion.piece.state = PieceState.IDLE
         motion.piece.cell  = motion.destination
         self._board.add_piece(motion.piece)
-
         RULES_BY_KIND[motion.piece.kind].on_arrival(motion.piece, self._board.rows)
-
         return king_captured
 
     def _resolve_landing(self, jump: Jump) -> None:
         """Places an airborne piece back on its square after the jump window expires."""
+        if jump.piece.state == PieceState.CAPTURED:
+            return
         jump.piece.state = PieceState.IDLE
         if self._board.is_empty(jump.cell):
             self._board.add_piece(jump.piece)
         else:
-            # Square was occupied while airborne — piece is displaced (captured)
             jump.piece.state = PieceState.CAPTURED

@@ -30,7 +30,9 @@ class GameEngine:
             return MoveResult(False, "piece_already_moving")
 
         moving_origins = self._arbiter.moving_origins()
-        validation = self._rule_engine.validate(self._board, source, destination, moving_origins)
+        friendly_airborne = {j.cell for j in self._arbiter._jumps
+                             if j.piece.color == self._board.piece_at(source).color}
+        validation = self._rule_engine.validate(self._board, source, destination, moving_origins, friendly_airborne)
         if not validation.is_valid:
             return MoveResult(False, validation.reason)
 

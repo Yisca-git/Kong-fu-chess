@@ -8,6 +8,28 @@ _KIND_MAP  = {k.value: k for k in Kind}
 EMPTY_CELL = '.'
 
 
+def validate(text: str) -> bool:
+    """Validates the board section. Prints ERROR and returns False if invalid."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    board_start = lines.index("Board:") + 1
+    board_end   = lines.index("Commands:")
+    raw_rows    = lines[board_start:board_end]
+
+    cols = len(raw_rows[0].split())
+    for row in raw_rows:
+        if len(row.split()) != cols:
+            print("ERROR ROW_WIDTH_MISMATCH")
+            return False
+    for row in raw_rows:
+        for token in row.split():
+            if token == EMPTY_CELL:
+                continue
+            if token[0] not in _COLOR_MAP or len(token) < 2 or token[1] not in _KIND_MAP:
+                print("ERROR UNKNOWN_TOKEN")
+                return False
+    return True
+
+
 def parse(text: str) -> tuple[Board, list[Piece]]:
     """Parses a text board definition into a Board and a list of Piece objects."""
     lines = [l.strip() for l in text.splitlines() if l.strip()]

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from model.position import Position
 from model.piece import Piece
 

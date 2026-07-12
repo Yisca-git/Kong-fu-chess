@@ -1,3 +1,4 @@
+from __future__ import annotations
 from model.board import Board
 from model.position import Position
 from model.piece import Piece
@@ -42,9 +43,11 @@ class RuleEngine:
         source: Position,
         destination: Position,
         moving_origins: set[Position] | None = None,
+        friendly_airborne: set[Position] | None = None,
     ) -> MoveValidation:
         """Validates a requested move against the current board state.
-        moving_origins: positions of pieces already in motion — treated as empty for path checks."""
+        moving_origins: positions of pieces already in motion — treated as empty for path checks.
+        friendly_airborne: positions of friendly airborne pieces — destination is blocked."""
         if not board.in_bounds(source) or not board.in_bounds(destination):
             return MoveValidation(False, "outside_board")
 
@@ -55,6 +58,9 @@ class RuleEngine:
         occupant = board.piece_at(destination)
         if occupant is not None and occupant.color == piece.color:
             return MoveValidation(False, "friendly_destination")
+
+        if friendly_airborne and destination in friendly_airborne:
+            return MoveValidation(False, "friendly_airborne_destination")
 
         board_view = _BoardWithoutMoving(board, moving_origins or set())
         rules = RULES_BY_KIND[piece.kind]

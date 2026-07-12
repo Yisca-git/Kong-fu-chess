@@ -1,3 +1,4 @@
+from __future__ import annotations
 from model.position import Position
 from engine.game_engine import GameEngine
 from input.board_mapper import pixel_to_position
