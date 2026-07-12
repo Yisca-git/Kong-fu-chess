@@ -1,7 +1,6 @@
 from model.board import Board
-from model.piece import Piece
+from model.piece import Piece, Color, Kind
 from model.position import Position
-from model.piece import Color
 from rules.piece_rules import PieceRules
 
 
@@ -24,3 +23,9 @@ class PawnRules(PieceRules):
                 destinations.add(capture)
 
         return destinations
+
+    def on_arrival(self, piece: Piece, board_rows: int) -> None:
+        """Promotes pawn to Queen if it reached the last row."""
+        promotion_row = 0 if piece.color == Color.WHITE else board_rows - 1
+        if piece.cell.row == promotion_row:
+            piece.kind = Kind.QUEEN

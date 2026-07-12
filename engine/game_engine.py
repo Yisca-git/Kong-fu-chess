@@ -22,14 +22,19 @@ class GameEngine:
         if self.game_over:
             return MoveResult(False, "game_over")
 
-        if self._arbiter.has_active_motion():
-            return MoveResult(False, "motion_in_progress")
+        piece = self._board.piece_at(source)
+        if piece is None:
+            return MoveResult(False, "empty_source")
 
-        validation = self._rule_engine.validate(self._board, source, destination)
+        if self._arbiter.is_piece_moving(piece):
+            return MoveResult(False, "piece_already_moving")
+
+        moving_origins = self._arbiter.moving_origins()
+        validation = self._rule_engine.validate(self._board, source, destination, moving_origins)
         if not validation.is_valid:
             return MoveResult(False, validation.reason)
 
-        self._arbiter.start_motion(self._board.piece_at(source), destination)
+        self._arbiter.start_motion(piece, destination)
         return MoveResult(True, "ok")
 
     def advance_time(self, ms: int) -> None:
