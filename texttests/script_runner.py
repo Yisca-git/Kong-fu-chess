@@ -6,6 +6,7 @@ from text_io.board_parser import parse
 from text_io.board_printer import print_board
 from realtime.real_time_arbiter import RealTimeArbiter
 from rules.rule_engine import RuleEngine
+from rules.rules_registry import RULES_BY_KIND
 from texttests.script_parser import (
     parse_script, ClickCommand, WaitCommand, PrintBoardCommand
 )
@@ -17,7 +18,7 @@ def run_script(text: str) -> list[tuple[list[str], list[str]]]:
 
     board, pieces = parse(board_text)
     rule_engine   = RuleEngine()
-    arbiter       = RealTimeArbiter(board)
+    arbiter       = RealTimeArbiter(board, RULES_BY_KIND)
     engine        = GameEngine(board, rule_engine, arbiter)
     controller    = Controller(engine, board.rows, board.cols)
 

@@ -3,12 +3,13 @@ from model.piece import Piece, PieceState, Kind
 from model.position import Position
 from realtime.motion import Motion
 from realtime.jump import Jump
-from rules.rules_registry import RULES_BY_KIND
+from rules.piece_rules import PieceRules
 
 
 class RealTimeArbiter:
-    def __init__(self, board: Board):
+    def __init__(self, board: Board, rules: dict[Kind, PieceRules]):
         self._board   = board
+        self._rules   = rules
         self._clock   = 0
         self._motions: list[Motion] = []
         self._jumps:   list[Jump]   = []
@@ -107,7 +108,7 @@ class RealTimeArbiter:
         motion.piece.state = PieceState.IDLE
         motion.piece.cell  = motion.destination
         self._board.add_piece(motion.piece)
-        RULES_BY_KIND[motion.piece.kind].on_arrival(motion.piece, self._board.rows)
+        self._rules[motion.piece.kind].on_arrival(motion.piece, self._board.rows)
         return king_captured
 
     def _resolve_landing(self, jump: Jump) -> None:
