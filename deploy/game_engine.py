@@ -1,0 +1,82 @@
+from typing import TYPE_CHECKING
+from board import Board
+from position import Position
+from rule_engine import RuleEngine
+from move_result import MoveResult
+from game_snapshot import GameSnapshot
+
+if TYPE_CHECKING:
+    from real_time_arbiter import RealTimeArbiter
+
+
+class GameEngine:
+    def __init__(self, board, rule_engine, arbiter):
+        self._board       = board
+        self._rule_engine = rule_engine
+        self._arbiter     = arbiter
+        self.game_over    = False
+
+    def request_move(self, source, destination):
+        """Validates and initiates a move request. Returns MoveResult with outcome reason."""
+        if self.game_over:
+            return MoveResult(False, "game_over")
+
+        piece = self._board.piece_at(source)
+        if piece is None:
+            return MoveResult(False, "empty_source")
+
+        if self._arbiter.is_piece_moving(piece):
+            return MoveResult(False, "piece_already_moving")
+
+        if self._arbiter.is_piece_on_cooldown(piece):
+            return MoveResult(False, "piece_on_cooldown")
+
+        moving_origins = self._arbiter.moving_origins()
+        friendly_airborne = {j.cell for j in self._arbiter._jumps
+                             if j.piece.color == self._board.piece_at(source).color}
+        validation = self._rule_engine.validate(self._board, source, destination, moving_origins, friendly_airborne)
+        if not validation.is_valid:
+            return MoveResult(False, validation.reason)
+
+        self._arbiter.start_motion(piece, destination)
+        return MoveResult(True, "ok")
+
+    def request_jump(self, pos):
+        """Validates and initiates a jump request. Returns MoveResult with outcome reason."""
+        if self.game_over:
+            return MoveResult(False, "game_over")
+
+        piece = self._board.piece_at(pos)
+        if piece is None:
+            return MoveResult(False, "empty_source")
+
+        if self._arbiter.is_piece_moving(piece):
+            return MoveResult(False, "piece_already_moving")
+
+        if self._arbiter.is_piece_on_cooldown(piece):
+            return MoveResult(False, "piece_on_cooldown")
+
+        if self._arbiter.is_piece_airborne(piece):
+            return MoveResult(False, "piece_already_airborne")
+
+        self._arbiter.start_jump(piece)
+        return MoveResult(True, "ok")
+
+    def advance_time(self, ms):
+        """Advances the game clock and resolves arrivals via the arbiter."""
+        king_captured = self._arbiter.advance_time(ms)
+        if king_captured:
+            self.game_over = True
+
+    def piece_at(self, pos):
+        """Returns True if a piece exists at the given position. Used by Controller to check for empty cells."""
+        return self._board.piece_at(pos) is not None
+
+    def snapshot(self):
+        """Returns a read-only snapshot of the current game state, including airborne pieces."""
+        return GameSnapshot.from_pieces(
+            self._board.all_pieces() + self._arbiter.airborne_pieces(),
+            self.game_over,
+            self._board.rows,
+            self._board.cols,
+        )

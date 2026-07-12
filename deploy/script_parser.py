@@ -20,13 +20,10 @@ class JumpCommand:
 
 @dataclass(frozen=True)
 class PrintBoardCommand:
-    expected: tuple[str, ...]
+    expected: tuple
 
 
-Command = ClickCommand | WaitCommand | PrintBoardCommand
-
-
-def parse_script(text: str) -> tuple[str, list[Command]]:
+def parse_script(text):
     """Parses a DSL script into a board text and a list of commands.
     Returns the raw board section and the parsed command list."""
     lines = [l.rstrip() for l in text.splitlines()]
@@ -35,7 +32,7 @@ def parse_script(text: str) -> tuple[str, list[Command]]:
     commands_start = lines.index("Commands:")
     board_text = "\n".join(["Board:"] + lines[board_start:commands_start] + ["Commands:"])
 
-    commands: list[Command] = []
+    commands = []
     i = commands_start + 1
 
     while i < len(lines):
@@ -74,5 +71,5 @@ def parse_script(text: str) -> tuple[str, list[Command]]:
     return board_text, commands
 
 
-def _is_command(line: str) -> bool:
+def _is_command(line):
     return line.startswith("click") or line.startswith("jump") or line.startswith("wait") or line == "print board"

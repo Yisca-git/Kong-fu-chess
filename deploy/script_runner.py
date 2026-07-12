@@ -1,20 +1,23 @@
 import io as _io
-from engine.game_engine import GameEngine
-from engine.game_snapshot import GameSnapshot
-from input.controller import Controller
-from text_io.board_parser import parse
-from text_io.board_printer import print_board
-from realtime.real_time_arbiter import RealTimeArbiter
-from rules.rule_engine import RuleEngine
-from rules.rules_registry import RULES_BY_KIND
-from texttests.script_parser import (
+from game_engine import GameEngine
+from game_snapshot import GameSnapshot
+from controller import Controller
+from board_parser import parse, validate
+from board_printer import print_board
+from real_time_arbiter import RealTimeArbiter
+from rule_engine import RuleEngine
+from rules_registry import RULES_BY_KIND
+from script_parser import (
     parse_script, ClickCommand, JumpCommand, WaitCommand, PrintBoardCommand
 )
 
 
-def run_script(text: str) -> list[tuple[list[str], list[str]]]:
+def run_script(text):
     """Runs a DSL script and returns a list of (actual, expected) pairs for each print board."""
     board_text, commands = parse_script(text)
+
+    if not validate(board_text):
+        return []
 
     board, pieces = parse(board_text)
     rule_engine   = RuleEngine()
@@ -22,7 +25,7 @@ def run_script(text: str) -> list[tuple[list[str], list[str]]]:
     engine        = GameEngine(board, rule_engine, arbiter)
     controller    = Controller(engine, board.rows, board.cols)
 
-    results: list[tuple[list[str], list[str]]] = []
+    results = []
 
     for command in commands:
         if isinstance(command, ClickCommand):
