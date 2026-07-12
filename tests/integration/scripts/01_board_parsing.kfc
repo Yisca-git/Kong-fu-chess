@@ -1,0 +1,11 @@
+Board:
+wR . . .
+. . . .
+. . . .
+. . . bK
+Commands:
+print board
+wR . . .
+. . . .
+. . . .
+. . . bK

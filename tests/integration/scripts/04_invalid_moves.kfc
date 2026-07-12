@@ -1,0 +1,13 @@
+Board:
+wR . . .
+. . . .
+. . . .
+. . . .
+Commands:
+click 0 0
+click 100 100
+print board
+wR . . .
+. . . .
+. . . .
+. . . .

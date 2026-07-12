@@ -57,6 +57,7 @@ texttests/      — מריץ בדיקות טקסטואליות
 |---|---|
 | `board_parser.py` | `parse(text)` — פרסור טקסט לוח ל-`Board` ורשימת `Piece` |
 | `board_printer.py` | `print_board(snapshot)` — הדפסת `GameSnapshot` כטקסט |
+| `command_parser.py` | `parse_commands(text)` — פרסור קטע Commands לרשימת tuples, משמש ב-`main.py` |
 
 ---
 
@@ -104,6 +105,56 @@ texttests/      — מריץ בדיקות טקסטואליות
 | `motion.py` | `Motion` — תנועה בודדת עם `arrival_time` מחושב |
 | `jump.py` | `Jump` — קפיצה במקום עם `land_time` מחושב |
 | `real_time_arbiter.py` | `RealTimeArbiter` — מנהל תנועות, קפיצות, וקידום זמן |
+
+---
+
+### texttests/
+**אחריות:** פרסור והרצת סקריפטי DSL לבדיקות אינטגרציה טקסטואליות.
+
+**אסור לה:** לוגיקת משחק, שינוי Board, רינדור, או קלט משתמש אמיתי.
+
+| קובץ | תוכן |
+|---|---|
+| `script_parser.py` | `parse_script(text)` — פרסור קובץ `.kfc` ל-`board_text` ורשימת `Command` (ClickCommand, WaitCommand, PrintBoardCommand) |
+| `script_runner.py` | `run_script(text)` — בונה את כל המחסנית (Board, RuleEngine, Arbiter, Engine, Controller) ומריץ את הפקודות, מחזיר רשימת `(actual, expected)` |
+
+---
+
+## מבנה הבדיקות
+
+```
+tests/
+├── unit/                        — בדיקות יחידה לכל שכבה בנפרד
+│   ├── test_position.py
+│   ├── test_board.py
+│   ├── test_piece_rules.py
+│   ├── test_rule_engine.py
+│   ├── test_real_time_arbiter.py
+│   ├── test_game_engine.py
+│   ├── test_board_mapper.py
+│   ├── test_controller.py
+│   ├── test_board_parser.py
+│   └── test_board_printer.py
+└── integration/
+    ├── scripts/                 — סקריפטי DSL בפורמט .kfc
+    │   ├── 01_board_parsing.kfc
+    │   ├── 02_click_to_move.kfc
+    │   ├── 03_rook_moves.kfc
+    │   ├── 04_invalid_moves.kfc
+    │   ├── 05_capture.kfc
+    │   └── 06_game_over.kfc
+    └── test_text_scripts.py     — טוען את כל קבצי ה-.kfc ומריץ אותם דרך script_runner
+```
+
+**הרצת הבדיקות:**
+```bash
+py -m pytest tests/
+```
+
+**דוח HTML:**
+```bash
+py -m pytest tests/ --html=report.html --self-contained-html
+```
 
 ---
 
@@ -168,6 +219,8 @@ texttests/      — מריץ בדיקות טקסטואליות
 **סיבה:** Kong-Fu-Chess הוא משחק ללא תורות — שני שחקנים זזים במקביל, וכל כלי עצמאי. חסימה גורפת ("יש תנועה כלשהי") סותרת את עיקרון המשחק.
 
 **_BoardWithoutMoving proxy:** `RuleEngine.validate` מקבל `moving_origins: set[Position]` ומשתמש ב-proxy שמסתיר כלים בתנועה מבדיקת נתיב — כי כלי שיצא מתאו לא אמור לחסום נתיב.
+
+**friendly_airborne:** `RuleEngine.validate` מקבל גם `friendly_airborne: set[Position]` — מיקומי כלים ידידותיים שבאוויר. תא שכלי ידידותי קפץ ממנו נחשב פנוי לצורך תנועה, כי הכלי כבר לא שם לוגית.
 
 ---
 
