@@ -1,0 +1,80 @@
+from model.board import Board
+from model.piece import Piece, Color, Kind, PieceState
+from model.position import Position
+from realtime.real_time_arbiter import RealTimeArbiter
+from rules.rule_engine import RuleEngine
+from rules.rules_registry import RULES_BY_KIND
+from engine.game_engine import GameEngine
+
+
+def make_piece(row, col, kind=Kind.ROOK, color=Color.WHITE):
+    return Piece(id=f"{color.value}{kind.value}", color=color, kind=kind, cell=Position(row, col))
+
+
+def setup(pieces):
+    board = Board(8, 8)
+    for p in pieces:
+        board.add_piece(p)
+    arbiter = RealTimeArbiter(board, RULES_BY_KIND)
+    engine  = GameEngine(board, RuleEngine(), arbiter)
+    return board, engine
+
+
+def test_rejects_move_when_game_over():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.game_over = True
+    result = engine.request_move(Position(0, 0), Position(0, 4))
+    assert not result.is_accepted
+    assert result.reason == "game_over"
+
+
+def test_rejects_move_when_piece_already_moving():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.request_move(Position(0, 0), Position(0, 4))
+    result = engine.request_move(Position(0, 0), Position(0, 1))
+    assert not result.is_accepted
+    assert result.reason == "piece_already_moving"
+
+
+def test_rejects_invalid_move():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    result = engine.request_move(Position(0, 0), Position(1, 1))
+    assert not result.is_accepted
+    assert result.reason == "illegal_piece_move"
+
+
+def test_accepts_valid_move():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    result = engine.request_move(Position(0, 0), Position(0, 4))
+    assert result.is_accepted
+    assert result.reason == "ok"
+
+
+def test_advance_time_moves_piece():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.request_move(Position(0, 0), Position(0, 4))
+    engine.advance_time(4000)
+    assert board.piece_at(Position(0, 4)) is rook
+
+
+def test_king_capture_sets_game_over():
+    rook = make_piece(0, 0)
+    king = make_piece(0, 1, kind=Kind.KING, color=Color.BLACK)
+    board, engine = setup([rook, king])
+    engine.request_move(Position(0, 0), Position(0, 1))
+    engine.advance_time(1000)
+    assert engine.game_over
+
+
+def test_snapshot_reflects_current_state():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    snapshot = engine.snapshot()
+    assert len(snapshot.pieces) == 1
+    assert snapshot.pieces[0].row == 0
+    assert snapshot.pieces[0].col == 0
