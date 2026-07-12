@@ -38,6 +38,10 @@ class GameEngine:
         if king_captured:
             self.game_over = True
 
+    def piece_at(self, pos: Position) -> bool:
+        """Returns True if a piece exists at the given position. Used by Controller to check for empty cells."""
+        return self._board.piece_at(pos) is not None
+
     def snapshot(self) -> GameSnapshot:
         """Returns a read-only snapshot of the current game state."""
         return GameSnapshot.from_pieces(
