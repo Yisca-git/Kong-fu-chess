@@ -103,6 +103,7 @@ class RealTimeArbiter:
         if occupant is not None:
             if occupant.kind == Kind.KING:
                 king_captured = True
+            occupant.state = PieceState.CAPTURED
             self._board.remove_piece(motion.destination)
 
         motion.piece.state = PieceState.IDLE
