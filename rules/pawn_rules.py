@@ -10,19 +10,22 @@ class PawnRules(PieceRules):
         forward = -1 if piece.color == Color.WHITE else 1
         destinations = set()
 
-        step = Position(piece.cell.row + forward, piece.cell.col)
-        if board.in_bounds(step) and board.is_empty(step):
+        r, c = piece.cell.row + forward, piece.cell.col
+        step = Position(r, c) if r >= 0 else None
+        if step and board.in_bounds(step) and board.is_empty(step):
             destinations.add(step)
 
             start_row = board.rows - 2 if piece.color == Color.WHITE else 1
-            double = Position(piece.cell.row + 2 * forward, piece.cell.col)
-            if piece.cell.row == start_row and board.in_bounds(double) and board.is_empty(double):
+            r2 = piece.cell.row + 2 * forward
+            double = Position(r2, c) if r2 >= 0 else None
+            if double and piece.cell.row == start_row and board.in_bounds(double) and board.is_empty(double):
                 destinations.add(double)
 
         for dc in (-1, 1):
-            capture = Position(piece.cell.row + forward, piece.cell.col + dc)
-            if not board.in_bounds(capture):
+            cr, cc = piece.cell.row + forward, piece.cell.col + dc
+            if cr < 0 or cc < 0:
                 continue
+            capture = Position(cr, cc)
             occupant = board.piece_at(capture)
             if occupant is not None and occupant.color != piece.color:
                 destinations.add(capture)

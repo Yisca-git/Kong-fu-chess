@@ -12,7 +12,10 @@ class KnightRules(PieceRules):
         """Returns all squares reachable by L-shaped jumps, ignoring blocking pieces."""
         destinations = set()
         for dr, dc in _KNIGHT_JUMPS:
-            pos = Position(piece.cell.row + dr, piece.cell.col + dc)
+            r, c = piece.cell.row + dr, piece.cell.col + dc
+            if r < 0 or c < 0:
+                continue
+            pos = Position(r, c)
             if not board.in_bounds(pos):
                 continue
             occupant = board.piece_at(pos)

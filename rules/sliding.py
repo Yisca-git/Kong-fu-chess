@@ -9,6 +9,8 @@ def slide(board: Board, piece: Piece, directions: list[tuple[int, int]]) -> set[
     for dr, dc in directions:
         r, c = piece.cell.row + dr, piece.cell.col + dc
         while True:
+            if r < 0 or c < 0:
+                break
             pos = Position(r, c)
             if not board.in_bounds(pos):
                 break

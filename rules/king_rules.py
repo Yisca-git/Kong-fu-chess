@@ -12,7 +12,10 @@ class KingRules(PieceRules):
         """Returns all squares one step away in any direction."""
         destinations = set()
         for dr, dc in _KING_STEPS:
-            pos = Position(piece.cell.row + dr, piece.cell.col + dc)
+            r, c = piece.cell.row + dr, piece.cell.col + dc
+            if r < 0 or c < 0:
+                continue
+            pos = Position(r, c)
             if not board.in_bounds(pos):
                 continue
             occupant = board.piece_at(pos)
