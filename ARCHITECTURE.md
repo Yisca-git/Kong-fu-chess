@@ -38,6 +38,30 @@ texttests/      — מריץ בדיקות טקסטואליות
 
 ---
 
+### input/
+**אחריות:** תרגום קלט משתמש לפקודות משחק.
+
+**אסור לה:** חוקיות שחמט, שינוי Board, רינדור, או תזמון.
+
+| קובץ | תוכן |
+|---|---|
+| `board_mapper.py` | `pixel_to_position(x, y)` — המרת פיקסלים לתאי לוח |
+| `controller.py` | `Controller` — ניהול בחירה ושליחת פקודות ל-`GameEngine` |
+
+---
+
+### io/
+**אחריות:** פרסור הגדרת לוח טקסטואלית והדפסת מצב לוח לוגי.
+
+**אסור לה:** כללי תנועה, ביצוע פקודות, רינדור, או לוגיקת בדיקות.
+
+| קובץ | תוכן |
+|---|---|
+| `board_parser.py` | `parse(text)` — פרסור טקסט לוח ל-`Board` ורשימת `Piece` |
+| `board_printer.py` | `print_board(snapshot)` — הדפסת `GameSnapshot` כטקסט |
+
+---
+
 ### rules/
 **אחריות:** גיאומטריית תנועה לכל סוג כלי, ואימות חוקיות מהלך.
 
@@ -141,7 +165,28 @@ texttests/      — מריץ בדיקות טקסטואליות
 
 ---
 
-### 8. חישוב arrival_time בתוך Motion
+### 9. Controller מכיר רק את GameEngine
+**החלטה:** `Controller` מקבל `GameEngine` בבנאי ומשתמש ב-`engine.piece_at(pos)` לבדיקת תא ריק.
+
+**סיבה:** עקרון Dependency Rule — כל שכבה מכירה רק את השכבות שמתחתיה. `Controller` יושב מעל `GameEngine`, לכן אסור לו לגעת ב-`Board` ישירות.
+
+---
+
+### 10. BoardMapper כפונקציה ולא מחלקה
+**החלטה:** `pixel_to_position(x, y)` היא פונקציה חופשית, לא מחלקה.
+
+**סיבה:** אין מצב לשמור — המרה פשוטה של `x // CELL_SIZE`, `y // CELL_SIZE`. מחלקה הייתה הפשטת יתר.
+
+---
+
+### 11. BoardParser מחזיר tuple[Board, list[Piece]]
+**החלטה:** `parse(text)` מחזיר את שניהם יחד.
+
+**סיבה:** `Board` ו-`Piece` נוצרים יחד ותמיד נדרשים יחד — אין טעם להפריד.
+
+---
+
+### 12. חישוב arrival_time בתוך Motion
 **החלטה:** `Motion.__post_init__` מחשב `arrival_time = start_time + steps * 1000`.
 
 **סיבה:** `Motion` יודע מקור ויעד — הוא המקום הטבעי לחישוב. שומר את `RealTimeArbiter` נקי מחישובי זמן.
