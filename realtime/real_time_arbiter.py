@@ -15,11 +15,11 @@ class RealTimeArbiter:
 
     def is_piece_moving(self, piece: Piece) -> bool:
         """Returns True if the given piece already has an active motion."""
-        return any(m.piece is piece for m in self._motions)
+        return any(m.piece == piece for m in self._motions)
 
     def is_piece_airborne(self, piece: Piece) -> bool:
         """Returns True if the given piece is currently airborne."""
-        return any(j.piece is piece for j in self._jumps)
+        return any(j.piece == piece for j in self._jumps)
 
     def airborne_pieces(self) -> list[Piece]:
         """Returns all pieces currently airborne."""
@@ -40,33 +40,43 @@ class RealTimeArbiter:
         piece.state = PieceState.AIRBORNE
         self._jumps.append(Jump(piece, piece.cell, self._clock))
 
+    def _next_event_time(self, target_time: int) -> int:
+        """Returns the earliest arrival or landing time up to target_time."""
+        t = target_time
+        for m in self._motions:
+            if m.arrival_time < t:
+                t = m.arrival_time
+        for j in self._jumps:
+            if j.land_time < t:
+                t = j.land_time
+        return t
+
+    def _process_due_events(self) -> bool:
+        """Resolves all motions and jumps due at the current clock. Returns True if a king was captured."""
+        king_captured = False
+
+        due_motions   = [m for m in self._motions if m.arrival_time <= self._clock]
+        self._motions = [m for m in self._motions if m.arrival_time  > self._clock]
+        for motion in reversed(due_motions):
+            if self._resolve_arrival(motion):
+                king_captured = True
+
+        due_landings = [j for j in self._jumps if j.land_time <= self._clock]
+        self._jumps  = [j for j in self._jumps if j.land_time  > self._clock]
+        for jump in due_landings:
+            self._resolve_landing(jump)
+
+        return king_captured
+
     def advance_time(self, ms: int) -> bool:
         """Advances the clock by ms and resolves all arrivals and landings. Returns True if a king was captured."""
         target_time   = self._clock + ms
         king_captured = False
 
         while self._clock < target_time:
-            next_event = target_time
-            for m in self._motions:
-                if m.arrival_time < next_event:
-                    next_event = m.arrival_time
-            for j in self._jumps:
-                if j.land_time < next_event:
-                    next_event = j.land_time
-            self._clock = min(next_event, target_time)
-
-            due_motions   = [m for m in self._motions if m.arrival_time <= self._clock]
-            self._motions = [m for m in self._motions if m.arrival_time  > self._clock]
-
-            # process in reverse insertion order: first registered wins
-            for motion in reversed(due_motions):
-                if self._resolve_arrival(motion):
-                    king_captured = True
-
-            due_landings = [j for j in self._jumps if j.land_time <= self._clock]
-            self._jumps  = [j for j in self._jumps if j.land_time  > self._clock]
-            for jump in due_landings:
-                self._resolve_landing(jump)
+            self._clock = self._next_event_time(target_time)
+            if self._process_due_events():
+                king_captured = True
 
         return king_captured
 
