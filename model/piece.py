@@ -20,6 +20,7 @@ class Kind(Enum):
 class PieceState(Enum):
     IDLE     = 'idle'
     MOVING   = 'moving'
+    AIRBORNE = 'airborne'
     CAPTURED = 'captured'
 
 

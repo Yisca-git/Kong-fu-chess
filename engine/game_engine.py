@@ -37,6 +37,24 @@ class GameEngine:
         self._arbiter.start_motion(piece, destination)
         return MoveResult(True, "ok")
 
+    def request_jump(self, pos: Position) -> MoveResult:
+        """Validates and initiates a jump request. Returns MoveResult with outcome reason."""
+        if self.game_over:
+            return MoveResult(False, "game_over")
+
+        piece = self._board.piece_at(pos)
+        if piece is None:
+            return MoveResult(False, "empty_source")
+
+        if self._arbiter.is_piece_moving(piece):
+            return MoveResult(False, "piece_already_moving")
+
+        if self._arbiter.is_piece_airborne(piece):
+            return MoveResult(False, "piece_already_airborne")
+
+        self._arbiter.start_jump(piece)
+        return MoveResult(True, "ok")
+
     def advance_time(self, ms: int) -> None:
         """Advances the game clock and resolves arrivals via the arbiter."""
         king_captured = self._arbiter.advance_time(ms)
@@ -48,9 +66,9 @@ class GameEngine:
         return self._board.piece_at(pos) is not None
 
     def snapshot(self) -> GameSnapshot:
-        """Returns a read-only snapshot of the current game state."""
+        """Returns a read-only snapshot of the current game state, including airborne pieces."""
         return GameSnapshot.from_pieces(
-            self._board.all_pieces(),
+            self._board.all_pieces() + self._arbiter.airborne_pieces(),
             self.game_over,
             self._board.rows,
             self._board.cols,

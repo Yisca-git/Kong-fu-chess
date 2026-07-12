@@ -14,6 +14,12 @@ class Controller:
         """Returns True if the position is within the board boundaries."""
         return 0 <= pos.row < self._board_rows and 0 <= pos.col < self._board_cols
 
+    def handle_jump(self, x: int, y: int) -> None:
+        """Handles a pixel-space right-click: issues a jump command for the piece at the given position."""
+        pos = pixel_to_position(x, y)
+        if self._in_bounds(pos):
+            self._engine.request_jump(pos)
+
     def handle_click(self, x: int, y: int) -> None:
         """Handles a pixel-space click: selects a piece or issues a move command."""
         pos = pixel_to_position(x, y)

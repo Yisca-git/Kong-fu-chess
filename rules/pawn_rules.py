@@ -14,6 +14,11 @@ class PawnRules(PieceRules):
         if board.in_bounds(step) and board.is_empty(step):
             destinations.add(step)
 
+            start_row = 6 if piece.color == Color.WHITE else 1
+            double = Position(piece.cell.row + 2 * forward, piece.cell.col)
+            if piece.cell.row == start_row and board.in_bounds(double) and board.is_empty(double):
+                destinations.add(double)
+
         for dc in (-1, 1):
             capture = Position(piece.cell.row + forward, piece.cell.col + dc)
             if not board.in_bounds(capture):
