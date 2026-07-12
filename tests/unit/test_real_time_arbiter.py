@@ -104,3 +104,44 @@ def test_piece_lands_back_after_jump_duration():
     arbiter.start_jump(rook)
     arbiter.advance_time(1000)
     assert board.piece_at(Position(0, 0)) is rook
+
+
+# --- cooldown ---
+
+def test_piece_on_cooldown_after_arrival():
+    rook = make_piece(0, 0)
+    board, arbiter = setup([rook])
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(1000)  # arrival
+    assert arbiter.is_piece_on_cooldown(rook)
+
+
+def test_piece_not_on_cooldown_after_cooldown_expires():
+    rook = make_piece(0, 0)
+    board, arbiter = setup([rook])
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(2000)  # arrival + cooldown
+    assert not arbiter.is_piece_on_cooldown(rook)
+
+
+def test_cooldown_remaining_decreases_over_time():
+    rook = make_piece(0, 0)
+    board, arbiter = setup([rook])
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(1000)  # arrival
+    remaining = arbiter.cooldown_remaining(rook)
+    assert 0 < remaining <= 1000
+
+
+def test_piece_on_cooldown_after_jump_landing():
+    rook = make_piece(0, 0)
+    board, arbiter = setup([rook])
+    arbiter.start_jump(rook)
+    arbiter.advance_time(1000)  # landing
+    assert arbiter.is_piece_on_cooldown(rook)
+
+
+def test_jump_cooldown_shorter_than_move_cooldown():
+    from realtime.motion import COOLDOWN_MS
+    from realtime.jump import JUMP_COOLDOWN_MS
+    assert JUMP_COOLDOWN_MS < COOLDOWN_MS

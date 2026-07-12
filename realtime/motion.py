@@ -2,7 +2,8 @@ from dataclasses import dataclass, field
 from model.piece import Piece
 from model.position import Position
 
-MS_PER_STEP = 1000
+MS_PER_STEP  = 1000
+COOLDOWN_MS  = 1000
 
 
 @dataclass
@@ -12,6 +13,7 @@ class Motion:
     destination:  Position
     start_time:   int
     arrival_time: int = field(init=False)
+    ready_time:   int = field(init=False)
 
     def __post_init__(self):
         steps = max(
@@ -19,3 +21,4 @@ class Motion:
             abs(self.destination.col - self.origin.col),
         )
         self.arrival_time = self.start_time + steps * MS_PER_STEP
+        self.ready_time   = self.arrival_time + COOLDOWN_MS

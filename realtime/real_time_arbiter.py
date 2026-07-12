@@ -8,11 +8,12 @@ from rules.piece_rules import PieceRules
 
 class RealTimeArbiter:
     def __init__(self, board: Board, rules: dict[Kind, PieceRules]):
-        self._board   = board
-        self._rules   = rules
-        self._clock   = 0
-        self._motions: list[Motion] = []
-        self._jumps:   list[Jump]   = []
+        self._board     = board
+        self._rules     = rules
+        self._clock     = 0
+        self._motions:   list[Motion] = []
+        self._jumps:     list[Jump]   = []
+        self._cooldowns: dict[int, int] = {}  # piece id → ready_time
 
     def is_piece_moving(self, piece: Piece) -> bool:
         """Returns True if the given piece already has an active motion."""
@@ -21,6 +22,14 @@ class RealTimeArbiter:
     def is_piece_airborne(self, piece: Piece) -> bool:
         """Returns True if the given piece is currently airborne."""
         return any(j.piece == piece for j in self._jumps)
+
+    def is_piece_on_cooldown(self, piece: Piece) -> bool:
+        """Returns True if the piece is resting after a move or jump."""
+        return self._cooldowns.get(id(piece), 0) > self._clock
+
+    def cooldown_remaining(self, piece: Piece) -> int:
+        """Returns remaining cooldown in ms, or 0 if ready."""
+        return max(0, self._cooldowns.get(id(piece), 0) - self._clock)
 
     def airborne_pieces(self) -> list[Piece]:
         """Returns all pieces currently airborne."""
@@ -109,6 +118,7 @@ class RealTimeArbiter:
         motion.piece.state = PieceState.IDLE
         motion.piece.cell  = motion.destination
         self._board.add_piece(motion.piece)
+        self._cooldowns[id(motion.piece)] = motion.ready_time
         self._rules[motion.piece.kind].on_arrival(motion.piece, self._board.rows)
         return king_captured
 
@@ -119,5 +129,6 @@ class RealTimeArbiter:
         jump.piece.state = PieceState.IDLE
         if self._board.is_empty(jump.cell):
             self._board.add_piece(jump.piece)
+            self._cooldowns[id(jump.piece)] = jump.ready_time
         else:
             jump.piece.state = PieceState.CAPTURED

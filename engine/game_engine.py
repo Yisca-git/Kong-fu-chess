@@ -29,6 +29,9 @@ class GameEngine:
         if self._arbiter.is_piece_moving(piece):
             return MoveResult(False, "piece_already_moving")
 
+        if self._arbiter.is_piece_on_cooldown(piece):
+            return MoveResult(False, "piece_on_cooldown")
+
         moving_origins = self._arbiter.moving_origins()
         friendly_airborne = {j.cell for j in self._arbiter._jumps
                              if j.piece.color == self._board.piece_at(source).color}
@@ -50,6 +53,9 @@ class GameEngine:
 
         if self._arbiter.is_piece_moving(piece):
             return MoveResult(False, "piece_already_moving")
+
+        if self._arbiter.is_piece_on_cooldown(piece):
+            return MoveResult(False, "piece_on_cooldown")
 
         if self._arbiter.is_piece_airborne(piece):
             return MoveResult(False, "piece_already_airborne")

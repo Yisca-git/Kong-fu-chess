@@ -38,6 +38,24 @@ def test_rejects_move_when_piece_already_moving():
     assert result.reason == "piece_already_moving"
 
 
+def test_rejects_move_when_piece_on_cooldown():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.request_move(Position(0, 0), Position(0, 1))
+    engine.advance_time(1000)  # arrival, cooldown starts
+    result = engine.request_move(Position(0, 1), Position(0, 2))
+    assert not result.is_accepted
+    assert result.reason == "piece_on_cooldown"
+
+
+def test_accepts_move_after_cooldown_expires():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.request_move(Position(0, 0), Position(0, 1))
+    engine.advance_time(2000)  # arrival + cooldown
+    result = engine.request_move(Position(0, 1), Position(0, 2))
+    assert result.is_accepted
+
 def test_rejects_invalid_move():
     rook = make_piece(0, 0)
     board, engine = setup([rook])
