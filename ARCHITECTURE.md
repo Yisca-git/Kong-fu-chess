@@ -102,9 +102,9 @@ texttests/      — מריץ בדיקות טקסטואליות
 
 | קובץ | תוכן |
 |---|---|
-| `motion.py` | `Motion` — תנועה בודדת עם `arrival_time` מחושב |
-| `jump.py` | `Jump` — קפיצה במקום עם `land_time` מחושב |
-| `real_time_arbiter.py` | `RealTimeArbiter` — מנהל תנועות, קפיצות, וקידום זמן |
+| `motion.py` | `Motion` — תנועה בודדת עם `arrival_time` ו-`ready_time` מחושבים (`COOLDOWN_MS = 1000ms`) |
+| `jump.py` | `Jump` — קפיצה במקום עם `land_time` ו-`ready_time` מחושבים (`JUMP_COOLDOWN_MS = 500ms`) |
+| `real_time_arbiter.py` | `RealTimeArbiter` — מנהל תנועות, קפיצות, קידום זמן, ו-`_cooldowns` |
 
 ---
 
@@ -240,12 +240,23 @@ py -m pytest tests/ --html=report.html --self-contained-html
 
 ---
 
-### 11. חישוב arrival_time/land_time בתוך Motion/Jump
-**החלטה:** `Motion.__post_init__` מחשב `arrival_time`, `Jump.__post_init__` מחשב `land_time`.
+### 11. חישוב arrival_time/land_time/ready_time בתוך Motion/Jump
+**החלטה:** `Motion.__post_init__` מחשב `arrival_time` ו-`ready_time`. `Jump.__post_init__` מחשב `land_time` ו-`ready_time`.
 
 **סיבה:** כל אחד מהם יודע את הנתונים הדרושים לחישוב — זה המקום הטבעי. שומר את `RealTimeArbiter` נקי מחישובי זמן.
 
 **קבועים:** `MS_PER_STEP = 1000ms` לכל צעד-תא. `JUMP_DURATION = 1000ms`. תנועה אלכסונית משתמשת ב-`max(|dr|, |dc|)` ולא במרחק אוקלידי.
+
+---
+
+### 15. Cooldown ב-RealTimeArbiter ולא ב-Piece
+**החלטה:** `RealTimeArbiter` מחזיק `_cooldowns: dict[int, int]` — מפתח `id(piece)` לזמן שבו הכלי מוכן שוב. הבדיקה חשופה דרך `is_piece_on_cooldown` ו-`cooldown_remaining`.
+
+**סיבה:** `Piece` הוא מודל טהור — אסור לו להכיל ידע על זמן. כל מידע הזמן שייך לשכבת `realtime`. `GameEngine` בודק `is_piece_on_cooldown` לפני `request_move` ו-`request_jump` ומחזיר `"piece_on_cooldown"`.
+
+**ערכים:** `COOLDOWN_MS = 1000ms` אחרי תנועה רגילה. `JUMP_COOLDOWN_MS = 500ms` אחרי קפיצה — קצר יותר כנדרש בדרישות.
+
+**נדחה:** שדה `cooldown_until` על `Piece` — מכניס ידע על זמן למודל הטהור.
 
 ---
 
