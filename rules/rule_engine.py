@@ -49,22 +49,22 @@ class RuleEngine:
         moving_origins: positions of pieces already in motion — treated as empty for path checks.
         friendly_airborne: positions of friendly airborne pieces — destination is blocked."""
         if not board.in_bounds(source) or not board.in_bounds(destination):
-            return MoveValidation(False, "outside_board")
+            return MoveValidation(False, MoveValidation.OUTSIDE_BOARD)
 
         piece = board.piece_at(source)
         if piece is None:
-            return MoveValidation(False, "empty_source")
+            return MoveValidation(False, MoveValidation.EMPTY_SOURCE)
 
         occupant = board.piece_at(destination)
         if occupant is not None and occupant.color == piece.color:
-            return MoveValidation(False, "friendly_destination")
+            return MoveValidation(False, MoveValidation.FRIENDLY_DESTINATION)
 
         if friendly_airborne and destination in friendly_airborne:
-            return MoveValidation(False, "friendly_airborne_destination")
+            return MoveValidation(False, MoveValidation.FRIENDLY_AIRBORNE_DESTINATION)
 
         board_view = _BoardWithoutMoving(board, moving_origins or set())
         rules = RULES_BY_KIND[piece.kind]
         if destination not in rules.legal_destinations(board_view, piece):
-            return MoveValidation(False, "illegal_piece_move")
+            return MoveValidation(False, MoveValidation.ILLEGAL_PIECE_MOVE)
 
-        return MoveValidation(True, "ok")
+        return MoveValidation(True, MoveValidation.OK)

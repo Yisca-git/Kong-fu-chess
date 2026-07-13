@@ -20,53 +20,51 @@ class GameEngine:
     def request_move(self, source: Position, destination: Position) -> MoveResult:
         """Validates and initiates a move request. Returns MoveResult with outcome reason."""
         if self.game_over:
-            return MoveResult(False, "game_over")
+            return MoveResult(False, MoveResult.GAME_OVER)
 
         piece = self._board.piece_at(source)
         if piece is None:
-            return MoveResult(False, "empty_source")
+            return MoveResult(False, MoveResult.EMPTY_SOURCE)
 
         if self._arbiter.is_piece_moving(piece):
-            return MoveResult(False, "piece_already_moving")
+            return MoveResult(False, MoveResult.PIECE_ALREADY_MOVING)
 
         if self._arbiter.is_piece_on_cooldown(piece):
-            return MoveResult(False, "piece_on_cooldown")
+            return MoveResult(False, MoveResult.PIECE_ON_COOLDOWN)
 
-        moving_origins = self._arbiter.moving_origins()
-        friendly_airborne = {j.cell for j in self._arbiter._jumps
-                             if j.piece.color == self._board.piece_at(source).color}
-        validation = self._rule_engine.validate(self._board, source, destination, moving_origins, friendly_airborne)
+        moving_origins    = self._arbiter.moving_origins()
+        friendly_airborne = self._arbiter.friendly_airborne_cells(piece.color)
+        validation        = self._rule_engine.validate(self._board, source, destination, moving_origins, friendly_airborne)
         if not validation.is_valid:
             return MoveResult(False, validation.reason)
 
         self._arbiter.start_motion(piece, destination)
-        return MoveResult(True, "ok")
+        return MoveResult(True, MoveResult.OK)
 
     def request_jump(self, pos: Position) -> MoveResult:
         """Validates and initiates a jump request. Returns MoveResult with outcome reason."""
         if self.game_over:
-            return MoveResult(False, "game_over")
+            return MoveResult(False, MoveResult.GAME_OVER)
+
+        if self._arbiter.is_piece_airborne_at(pos):
+            return MoveResult(False, MoveResult.PIECE_ALREADY_AIRBORNE)
 
         piece = self._board.piece_at(pos)
         if piece is None:
-            return MoveResult(False, "empty_source")
+            return MoveResult(False, MoveResult.EMPTY_SOURCE)
 
         if self._arbiter.is_piece_moving(piece):
-            return MoveResult(False, "piece_already_moving")
+            return MoveResult(False, MoveResult.PIECE_ALREADY_MOVING)
 
         if self._arbiter.is_piece_on_cooldown(piece):
-            return MoveResult(False, "piece_on_cooldown")
-
-        if self._arbiter.is_piece_airborne(piece):
-            return MoveResult(False, "piece_already_airborne")
+            return MoveResult(False, MoveResult.PIECE_ON_COOLDOWN)
 
         self._arbiter.start_jump(piece)
-        return MoveResult(True, "ok")
+        return MoveResult(True, MoveResult.OK)
 
     def advance_time(self, ms: int) -> None:
         """Advances the game clock and resolves arrivals via the arbiter."""
-        king_captured = self._arbiter.advance_time(ms)
-        if king_captured:
+        if self._arbiter.advance_time(ms):
             self.game_over = True
 
     def piece_at(self, pos: Position) -> bool:

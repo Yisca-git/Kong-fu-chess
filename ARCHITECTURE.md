@@ -199,10 +199,12 @@ py -m pytest tests/ --html=report.html --self-contained-html
 
 ---
 
-### 6. MoveValidation ו-MoveResult כ-DTO נפרד
-**החלטה:** כל DTO בקובץ משלו.
+### 6. MoveValidation ו-MoveResult כ-DTO נפרד עם class attributes
+**החלטה:** כל DTO בקובץ משלו. הסיבות (`reason`) מוגדרות כ-class attributes מחרוזת ולא כמחרוזות חופשיות.
 
-**סיבה:** שכבות אחרות משתמשות ב-`MoveValidation` — אם היה יושב ב-`rule_engine.py` הן היו צריכות לייבא ממנו רק בשביל ה-DTO, מה שיוצר תלות מיותרת.
+**סיבה:** שכבות אחרות משתמשות ב-`MoveValidation` — אם היה יושב ב-`rule_engine.py` הן היו צריכות לייבא ממנו רק בשביל ה-DTO, מה שיוצר תלות מיותרת. Class attributes נותנים קריאות ובטיחות בלי מורכבות של Enum.
+
+**נדחה:** Enum לסיבות — מורכבות מיותרת.
 
 ---
 
@@ -220,7 +222,7 @@ py -m pytest tests/ --html=report.html --self-contained-html
 
 **_BoardWithoutMoving proxy:** `RuleEngine.validate` מקבל `moving_origins: set[Position]` ומשתמש ב-proxy שמסתיר כלים בתנועה מבדיקת נתיב — כי כלי שיצא מתאו לא אמור לחסום נתיב.
 
-**friendly_airborne:** `RuleEngine.validate` מקבל גם `friendly_airborne: set[Position]` — מיקומי כלים ידידותיים שבאוויר. תא שכלי ידידותי קפץ ממנו נחשב פנוי לצורך תנועה, כי הכלי כבר לא שם לוגית.
+**friendly_airborne:** `RuleEngine.validate` מקבל גם `friendly_airborne: set[Position]` — מיקומי כלים ידידותיים שבאוויר. תא שכלי ידידותי קפץ ממנו נחשב פנוי לצורך תנועה, כי הכלי כבר לא שם לוגית. `GameEngine` מספק את הנתון הזה דרך `arbiter.friendly_airborne_cells(piece.color)`.
 
 ---
 
@@ -238,6 +240,10 @@ py -m pytest tests/ --html=report.html --self-contained-html
 
 **כלל התנגשות:** תוקף שמגיע לתא של כלי airborne — הקופץ אוכל את התוקף (לא להיפך). אחרי `JUMP_DURATION` הכלי נוחת חזרה אם התא פנוי.
 
+**נחיתה על אויב:** כלי שנוחת על אויב — האויב נאכל.
+
+**נחיתה על ידידותי:** כלי שנוחת על ידידותי — הכלי הקופץ נאכל (אין לו מקום לנחות). הידידותי לא מושפע. (טרם מומש)
+
 ---
 
 ### 11. חישוב arrival_time/land_time/ready_time בתוך Motion/Jump
@@ -246,6 +252,46 @@ py -m pytest tests/ --html=report.html --self-contained-html
 **סיבה:** כל אחד מהם יודע את הנתונים הדרושים לחישוב — זה המקום הטבעי. שומר את `RealTimeArbiter` נקי מחישובי זמן.
 
 **קבועים:** `MS_PER_STEP = 1000ms` לכל צעד-תא. `JUMP_DURATION = 1000ms`. תנועה אלכסונית משתמשת ב-`max(|dr|, |dc|)` ולא במרחק אוקלידי.
+
+---
+
+### 16. encapsulation של RealTimeArbiter
+**החלטה:** `GameEngine` לא ניגש לשדות פרטיים של `RealTimeArbiter` (כמו `_jumps`). במקום זאת `RealTimeArbiter` חושף מתודות ציבוריות.
+
+**סיבה:** עקרון encapsulation — `GameEngine` לא אמור לדעת על המבנה הפנימי של `RealTimeArbiter`.
+
+**דוגמה:** `friendly_airborne_cells(color)` מחזירה `set[Position]` של כלים airborne ידידותיים, במקום ש-`GameEngine` יחפש ב-`_jumps` ישירות.
+
+---
+
+### 17. סדר עיבוד תנועות לפי arrival_time
+**החלטה:** תנועות שמגיעות באותו tick מעובדות לפי סדר `arrival_time` עולה.
+
+**סיבה:** מי שהתחיל לנוע קודם — מגיע קודם. `reversed` היה שרירותי.
+
+---
+
+### 18. כלי ידידותי ביעד — הכלי הנע נשאר במקורו
+**החלטה:** ב-`_handle_destination`, אם הכלי ביעד הוא ידידותי — הכלי הנע חוזר ל-IDLE במקורו ולא מקבל cooldown.
+
+**סיבה:** הכלי הנע לא יכול לנחות על ידידותי, אבל גם לא נענש על כך.
+
+---
+
+### 19. פיצול _resolve_arrival
+**החלטה:** `_resolve_arrival` פוצלה לשתי מתודות: `_handle_airborne_enemy` ו-`_handle_destination`.
+
+**סיבה:** שני מקרים שונים לוגית — כלי airborne ביעד מטופל אחרת מכלי על הקרקע.
+
+- `_handle_airborne_enemy`: כלי נע מגיע ליעד שיש בו כלי אויב airborne — הקופץ נוחת ואוכל את התוקף.
+- `_handle_destination`: טיפול רגיל — ריק, אויב על הקרקע, או ידידותי.
+
+---
+
+### 20. תנאי ניצחון מבודד ב-_is_victory
+**החלטה:** הלוגיקה "האם אכילת כלי זה מסיימת משחק" מבודדת ב-`_is_victory(piece)` ב-`RealTimeArbiter`.
+
+**סיבה:** הפרדת אחריות — `RealTimeArbiter` לא אמור לדעת על תנאי ניצחון ספציפיים, ו-`GameEngine` לא אמור לחפור בפרטי הנחיתה.
 
 ---
 

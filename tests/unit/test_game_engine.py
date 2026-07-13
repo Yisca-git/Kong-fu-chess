@@ -29,6 +29,34 @@ def test_rejects_move_when_game_over():
     assert result.reason == "game_over"
 
 
+def test_rejects_jump_when_game_over():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.game_over = True
+    result = engine.request_jump(Position(0, 0))
+    assert not result.is_accepted
+    assert result.reason == "game_over"
+
+
+def test_rejects_jump_when_already_airborne():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.request_jump(Position(0, 0))
+    result = engine.request_jump(Position(0, 0))
+    assert not result.is_accepted
+    assert result.reason == "piece_already_airborne"
+
+
+def test_rejects_jump_when_piece_on_cooldown():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    engine.request_jump(Position(0, 0))
+    engine.advance_time(1000)  # landing, cooldown starts
+    result = engine.request_jump(Position(0, 0))
+    assert not result.is_accepted
+    assert result.reason == "piece_on_cooldown"
+
+
 def test_rejects_move_when_piece_already_moving():
     rook = make_piece(0, 0)
     board, engine = setup([rook])

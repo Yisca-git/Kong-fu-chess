@@ -23,6 +23,10 @@ class RealTimeArbiter:
         """Returns True if the given piece is currently airborne."""
         return any(j.piece == piece for j in self._jumps)
 
+    def is_piece_airborne_at(self, cell: Position) -> bool:
+        """Returns True if an airborne piece occupies the given cell."""
+        return any(j.cell == cell for j in self._jumps)
+
     def is_piece_on_cooldown(self, piece: Piece) -> bool:
         """Returns True if the piece is resting after a move or jump."""
         return self._cooldowns.get(id(piece), 0) > self._clock
@@ -34,6 +38,10 @@ class RealTimeArbiter:
     def airborne_pieces(self) -> list[Piece]:
         """Returns all pieces currently airborne."""
         return [j.piece for j in self._jumps]
+
+    def friendly_airborne_cells(self, color) -> set[Position]:
+        """Returns the cells occupied by airborne pieces of the given color."""
+        return {j.cell for j in self._jumps if j.piece.color == color}
 
     def moving_origins(self) -> set[Position]:
         """Returns the origin positions of all pieces currently in motion."""
@@ -62,77 +70,101 @@ class RealTimeArbiter:
         return t
 
     def _process_due_events(self) -> bool:
-        """Resolves all motions and jumps due at the current clock. Returns True if a king was captured."""
-        king_captured = False
+        """Resolves all motions and jumps due at the current clock. Returns True if a victory condition was met."""
+        victory = False
 
-        due_motions   = [m for m in self._motions if m.arrival_time <= self._clock]
-        self._motions = [m for m in self._motions if m.arrival_time  > self._clock]
-        for motion in reversed(due_motions):
+        due_motions   = sorted(
+            [m for m in self._motions if m.arrival_time <= self._clock],
+            key=lambda m: m.arrival_time
+        )
+        self._motions = [m for m in self._motions if m.arrival_time > self._clock]
+
+        due_landings  = [j for j in self._jumps if j.land_time <= self._clock]
+        self._jumps   = [j for j in self._jumps if j.land_time  > self._clock]
+
+        for motion in due_motions:
             if self._resolve_arrival(motion):
-                king_captured = True
+                victory = True
 
-        due_landings = [j for j in self._jumps if j.land_time <= self._clock]
-        self._jumps  = [j for j in self._jumps if j.land_time  > self._clock]
         for jump in due_landings:
-            self._resolve_landing(jump)
+            if self._resolve_landing(jump):
+                victory = True
 
-        return king_captured
+        return victory
 
     def advance_time(self, ms: int) -> bool:
-        """Advances the clock by ms and resolves all arrivals and landings. Returns True if a king was captured."""
-        target_time   = self._clock + ms
-        king_captured = False
+        """Advances the clock by ms and resolves all arrivals and landings. Returns True if a victory condition was met."""
+        target_time = self._clock + ms
+        victory     = False
 
         while self._clock < target_time:
             self._clock = self._next_event_time(target_time)
             if self._process_due_events():
-                king_captured = True
+                victory = True
 
-        return king_captured
+        return victory
 
-    def _resolve_arrival(self, motion: Motion) -> bool:
-        """Resolves a single arrival. Returns True if a king was captured."""
-        king_captured = False
+    def _is_victory(self, piece: Piece) -> bool:
+        """Returns True if capturing this piece ends the game. Override to change win condition."""
+        return piece.kind == Kind.KING
 
-        # enemy airborne on destination — jumper captures attacker
+    def _handle_airborne_enemy(self, motion: Motion) -> bool:
+        """Handles the case where an airborne enemy is on the destination. Returns True if a victory condition was met."""
         airborne_enemy = next(
             (j for j in self._jumps
              if j.cell == motion.destination and j.piece.color != motion.piece.color),
             None,
         )
-        if airborne_enemy is not None:
-            self._board.remove_piece(motion.origin)
-            if motion.piece.kind == Kind.KING:
-                king_captured = True
-            motion.piece.state = PieceState.CAPTURED
-            self._jumps = [j for j in self._jumps if j is not airborne_enemy]
-            airborne_enemy.piece.state = PieceState.IDLE
-            self._board.add_piece(airborne_enemy.piece)
-            self._cooldowns[id(airborne_enemy.piece)] = airborne_enemy.ready_time
-            return king_captured
+        if airborne_enemy is None:
+            return False
+        self._board.remove_piece(motion.origin)
+        victory = self._is_victory(airborne_enemy.piece)
+        motion.piece.state = PieceState.CAPTURED
+        self._jumps = [j for j in self._jumps if j is not airborne_enemy]
+        airborne_enemy.piece.state = PieceState.IDLE
+        self._board.add_piece(airborne_enemy.piece)
+        self._cooldowns[id(airborne_enemy.piece)] = airborne_enemy.ready_time
+        return victory
 
+    def _handle_destination(self, motion: Motion) -> bool:
+        """Handles arrival at destination: blocks if friendly, captures if enemy, or moves to empty cell. Returns True if a victory condition was met."""
         self._board.remove_piece(motion.origin)
         occupant = self._board.piece_at(motion.destination)
         if occupant is not None:
-            if occupant.kind == Kind.KING:
-                king_captured = True
+            if occupant.color == motion.piece.color:
+                motion.piece.state = PieceState.IDLE
+                self._board.add_piece(motion.piece)
+                return False
+            victory = self._is_victory(occupant)
             occupant.state = PieceState.CAPTURED
             self._board.remove_piece(motion.destination)
-
+        else:
+            victory = False
         motion.piece.state = PieceState.IDLE
         motion.piece.cell  = motion.destination
         self._board.add_piece(motion.piece)
         self._cooldowns[id(motion.piece)] = motion.ready_time
         self._rules[motion.piece.kind].on_arrival(motion.piece, self._board.rows)
-        return king_captured
+        return victory
 
-    def _resolve_landing(self, jump: Jump) -> None:
-        """Places an airborne piece back on its square after the jump window expires."""
+    def _resolve_arrival(self, motion: Motion) -> bool:
+        """Resolves a single arrival. Returns True if a victory condition was met."""
+        if self._handle_airborne_enemy(motion):
+            return True
+        return self._handle_destination(motion)
+
+    def _resolve_landing(self, jump: Jump) -> bool:
+        """Places an airborne piece back on its square after the jump window expires. Returns True if a victory condition was met."""
         if jump.piece.state == PieceState.CAPTURED:
-            return
+            return False
         jump.piece.state = PieceState.IDLE
-        if self._board.is_empty(jump.cell):
-            self._board.add_piece(jump.piece)
-            self._cooldowns[id(jump.piece)] = jump.ready_time
+        occupant = self._board.piece_at(jump.cell)
+        if occupant is not None:
+            victory = self._is_victory(occupant)
+            occupant.state = PieceState.CAPTURED
+            self._board.remove_piece(jump.cell)
         else:
-            jump.piece.state = PieceState.CAPTURED
+            victory = False
+        self._board.add_piece(jump.piece)
+        self._cooldowns[id(jump.piece)] = jump.ready_time
+        return victory

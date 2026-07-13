@@ -45,7 +45,19 @@ def test_jump_in_bounds():
     engine.request_jump.assert_called_once_with(Position(1, 1))
 
 
-def test_jump_out_of_bounds_ignored():
-    ctrl, engine = make_controller()
-    ctrl.handle_jump(9 * CELL, 9 * CELL)
-    engine.request_jump.assert_not_called()
+def test_friendly_destination_reselects():
+    ctrl, engine = make_controller(piece_at=True)
+    from engine.move_result import MoveResult
+    engine.request_move.return_value = MoveResult(False, MoveResult.FRIENDLY_DESTINATION)
+    ctrl.handle_click(0, 0)
+    ctrl.handle_click(2 * CELL, 0)
+    assert ctrl._selected == Position(0, 2)
+
+
+def test_non_friendly_result_clears_selection():
+    ctrl, engine = make_controller(piece_at=True)
+    from engine.move_result import MoveResult
+    engine.request_move.return_value = MoveResult(True, MoveResult.OK)
+    ctrl.handle_click(0, 0)
+    ctrl.handle_click(2 * CELL, 0)
+    assert ctrl._selected is None

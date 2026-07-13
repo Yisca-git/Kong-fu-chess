@@ -1,5 +1,6 @@
 from __future__ import annotations
 from model.position import Position
+from engine.move_result import MoveResult
 from engine.game_engine import GameEngine
 from input.board_mapper import pixel_to_position
 
@@ -35,7 +36,7 @@ class Controller:
             return
 
         result = self._engine.request_move(self._selected, pos)
-        if result.reason == 'friendly_destination':
+        if result.reason == MoveResult.FRIENDLY_DESTINATION:
             self._selected = pos
         else:
             self._selected = None

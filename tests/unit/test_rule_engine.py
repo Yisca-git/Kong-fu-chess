@@ -65,3 +65,19 @@ def test_accepts_capture_of_enemy():
     result = engine.validate(board, Position(0, 0), Position(0, 4))
     assert result.is_valid
     assert result.reason == "ok"
+
+
+def test_rejects_friendly_airborne_destination():
+    rook = make_piece(0, 0)
+    board = board_with(rook)
+    result = engine.validate(board, Position(0, 0), Position(0, 4), friendly_airborne={Position(0, 4)})
+    assert not result.is_valid
+    assert result.reason == "friendly_airborne_destination"
+
+
+def test_moving_origin_does_not_block_path():
+    rook = make_piece(0, 0)
+    blocker = make_piece(0, 2)
+    board = board_with(rook, blocker)
+    result = engine.validate(board, Position(0, 0), Position(0, 4), moving_origins={Position(0, 2)})
+    assert result.is_valid
