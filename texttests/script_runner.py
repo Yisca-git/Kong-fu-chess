@@ -1,6 +1,7 @@
 import io as _io
 from engine.game_engine import GameEngine
 from engine.game_snapshot import GameSnapshot
+from engine.arrival_resolver import ArrivalResolver
 from input.controller import Controller
 from text_io.board_parser import parse
 from text_io.board_printer import print_board
@@ -18,8 +19,9 @@ def run_script(text: str) -> list[tuple[list[str], list[str]]]:
 
     board, pieces = parse(board_text)
     rule_engine   = RuleEngine()
-    arbiter       = RealTimeArbiter(board, RULES_BY_KIND)
-    engine        = GameEngine(board, rule_engine, arbiter)
+    arbiter       = RealTimeArbiter()
+    resolver      = ArrivalResolver(board, RULES_BY_KIND, arbiter)
+    engine        = GameEngine(board, rule_engine, arbiter, resolver)
     controller    = Controller(engine, board.rows, board.cols)
 
     results: list[tuple[list[str], list[str]]] = []

@@ -1,144 +1,191 @@
-from model.board import Board
 from model.piece import Piece, Color, Kind, PieceState
 from model.position import Position
 from realtime.real_time_arbiter import RealTimeArbiter
-from rules.rules_registry import RULES_BY_KIND
+from realtime.motion import Motion
+from realtime.jump import Jump
 
 
 def make_piece(row, col, kind=Kind.ROOK, color=Color.WHITE):
     return Piece(id=f"{color.value}{kind.value}", color=color, kind=kind, cell=Position(row, col))
 
 
-def setup(pieces):
-    board = Board(8, 8)
-    for p in pieces:
-        board.add_piece(p)
-    return board, RealTimeArbiter(board, RULES_BY_KIND)
+class _SpyResolver:
+    """Records which motions/jumps became due, without touching any board."""
+    def __init__(self, victory_on=None):
+        self.arrivals: list[Motion] = []
+        self.landings: list[Jump]   = []
+        self._victory_on = victory_on
+
+    def resolve_arrival(self, motion: Motion) -> bool:
+        self.arrivals.append(motion)
+        return motion is self._victory_on
+
+    def resolve_landing(self, jump: Jump) -> bool:
+        self.landings.append(jump)
+        return jump is self._victory_on
 
 
-# --- timing ---
+# --- timing: due events reach the resolver at the right time ---
 
-def test_one_step_takes_1000ms():
+def test_motion_not_due_before_arrival_time():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
     arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(999)
-    assert board.piece_at(Position(0, 0)) is rook
-    arbiter.advance_time(1)
-    assert board.piece_at(Position(0, 1)) is rook
+    arbiter.advance_time(999, resolver)
+    assert resolver.arrivals == []
 
 
-def test_two_steps_take_2000ms():
+def test_motion_due_exactly_at_arrival_time():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_motion(rook, Position(0, 2))
-    arbiter.advance_time(1999)
-    assert board.piece_at(Position(0, 0)) is rook
-    arbiter.advance_time(1)
-    assert board.piece_at(Position(0, 2)) is rook
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(1000, resolver)
+    assert [m.piece for m in resolver.arrivals] == [rook]
 
 
-def test_diagonal_uses_chebyshev_distance():
+def test_diagonal_motion_uses_chebyshev_distance():
     bishop = make_piece(0, 0, kind=Kind.BISHOP)
-    board, arbiter = setup([bishop])
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
     arbiter.start_motion(bishop, Position(3, 3))
-    arbiter.advance_time(2999)
-    assert board.piece_at(Position(0, 0)) is bishop
-    arbiter.advance_time(1)
-    assert board.piece_at(Position(3, 3)) is bishop
+    arbiter.advance_time(2999, resolver)
+    assert resolver.arrivals == []
+    arbiter.advance_time(1, resolver)
+    assert len(resolver.arrivals) == 1
 
 
-# --- logical board state ---
-
-def test_piece_stays_on_source_until_arrival():
+def test_jump_lands_after_jump_duration():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_motion(rook, Position(0, 4))
-    arbiter.advance_time(2000)
-    assert board.piece_at(Position(0, 0)) is rook
-    assert board.piece_at(Position(0, 4)) is None
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
+    arbiter.start_jump(rook)
+    arbiter.advance_time(999, resolver)
+    assert resolver.landings == []
+    arbiter.advance_time(1, resolver)
+    assert [j.piece for j in resolver.landings] == [rook]
 
 
-def test_piece_moves_to_destination_on_arrival():
+def test_earlier_arrival_resolved_before_later_one():
+    rook1 = make_piece(0, 0)
+    rook2 = make_piece(0, 3, color=Color.BLACK)
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
+    arbiter.start_motion(rook1, Position(0, 1))  # arrives at 1000ms
+    arbiter.start_motion(rook2, Position(0, 1))  # arrives at 2000ms
+    arbiter.advance_time(2000, resolver)
+    assert [m.piece for m in resolver.arrivals] == [rook1, rook2]
+
+
+# --- victory propagation ---
+
+def test_advance_time_returns_true_when_resolver_reports_victory():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_motion(rook, Position(0, 4))
-    arbiter.advance_time(4000)
-    assert board.piece_at(Position(0, 0)) is None
-    assert board.piece_at(Position(0, 4)) is rook
+    arbiter = RealTimeArbiter()
+    arbiter.start_motion(rook, Position(0, 1))
+    motion = arbiter._motions[0]
+    resolver = _SpyResolver(victory_on=motion)
+    assert arbiter.advance_time(1000, resolver)
 
 
-# --- capture ---
-
-def test_arrival_captures_enemy():
+def test_advance_time_returns_false_without_victory():
     rook = make_piece(0, 0)
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
+    arbiter.start_motion(rook, Position(0, 1))
+    assert not arbiter.advance_time(1000, resolver)
+
+
+# --- piece/motion state flags ---
+
+def test_start_motion_marks_piece_moving():
+    rook = make_piece(0, 0)
+    arbiter = RealTimeArbiter()
+    arbiter.start_motion(rook, Position(0, 1))
+    assert rook.state == PieceState.MOVING
+    assert arbiter.is_piece_moving(rook)
+
+
+def test_moving_origins_returns_source_cell():
+    rook = make_piece(0, 0)
+    arbiter = RealTimeArbiter()
+    arbiter.start_motion(rook, Position(0, 1))
+    assert arbiter.moving_origins() == {Position(0, 0)}
+
+
+def test_start_jump_marks_piece_airborne():
+    rook = make_piece(0, 0)
+    arbiter = RealTimeArbiter()
+    arbiter.start_jump(rook)
+    assert rook.state == PieceState.AIRBORNE
+    assert arbiter.is_piece_airborne(rook)
+    assert arbiter.is_piece_airborne_at(Position(0, 0))
+
+
+def test_friendly_airborne_cells_returns_jumped_cell():
+    rook = make_piece(0, 0)
+    arbiter = RealTimeArbiter()
+    arbiter.start_jump(rook)
+    assert arbiter.friendly_airborne_cells(Color.WHITE) == {Position(0, 0)}
+
+
+def test_friendly_airborne_cells_excludes_enemy():
     enemy = make_piece(0, 1, color=Color.BLACK)
-    board, arbiter = setup([rook, enemy])
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)
-    assert board.piece_at(Position(0, 1)) is rook
-    assert enemy.state == PieceState.CAPTURED
+    arbiter = RealTimeArbiter()
+    arbiter.start_jump(enemy)
+    assert arbiter.friendly_airborne_cells(Color.WHITE) == set()
 
 
-def test_arrival_captures_king_sets_game_over():
+def test_airborne_jump_at_finds_enemy_jump():
+    enemy = make_piece(0, 1, color=Color.BLACK)
+    arbiter = RealTimeArbiter()
+    arbiter.start_jump(enemy)
+    jump = arbiter.airborne_jump_at(Position(0, 1), Color.WHITE)
+    assert jump is not None and jump.piece is enemy
+
+
+def test_airborne_jump_at_ignores_friendly_jump():
+    friendly = make_piece(0, 1, color=Color.WHITE)
+    arbiter = RealTimeArbiter()
+    arbiter.start_jump(friendly)
+    assert arbiter.airborne_jump_at(Position(0, 1), Color.WHITE) is None
+
+
+def test_cancel_jump_removes_pending_jump():
     rook = make_piece(0, 0)
-    king = make_piece(0, 1, kind=Kind.KING, color=Color.BLACK)
-    board, arbiter = setup([rook, king])
-    arbiter.start_motion(rook, Position(0, 1))
-    king_captured = arbiter.advance_time(1000)
-    assert king_captured
-
-
-# --- jump ---
-
-def test_jump_removes_piece_from_board():
-    rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
+    arbiter = RealTimeArbiter()
     arbiter.start_jump(rook)
-    assert board.piece_at(Position(0, 0)) is None
+    jump = arbiter.airborne_jump_at(Position(0, 0), Color.BLACK)
+    arbiter.cancel_jump(jump)
+    assert not arbiter.is_piece_airborne(rook)
 
 
-def test_piece_lands_back_after_jump_duration():
+# --- cooldown bookkeeping ---
+
+def test_set_cooldown_then_is_on_cooldown():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_jump(rook)
-    arbiter.advance_time(1000)
-    assert board.piece_at(Position(0, 0)) is rook
-
-
-# --- cooldown ---
-
-def test_piece_on_cooldown_after_arrival():
-    rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)  # arrival
+    arbiter = RealTimeArbiter()
+    arbiter.set_cooldown(rook, 1000)
     assert arbiter.is_piece_on_cooldown(rook)
 
 
-def test_piece_not_on_cooldown_after_cooldown_expires():
+def test_cooldown_expires_after_clock_passes_ready_time():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(2000)  # arrival + cooldown
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
+    arbiter.set_cooldown(rook, 500)
+    arbiter.advance_time(500, resolver)  # no pending motions/jumps, just advances the clock
     assert not arbiter.is_piece_on_cooldown(rook)
 
 
 def test_cooldown_remaining_decreases_over_time():
     rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)  # arrival
-    remaining = arbiter.cooldown_remaining(rook)
-    assert 0 < remaining <= 1000
-
-
-def test_piece_on_cooldown_after_jump_landing():
-    rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_jump(rook)
-    arbiter.advance_time(1000)  # landing
-    assert arbiter.is_piece_on_cooldown(rook)
+    arbiter = RealTimeArbiter()
+    resolver = _SpyResolver()
+    arbiter.set_cooldown(rook, 1000)
+    arbiter.advance_time(400, resolver)
+    assert arbiter.cooldown_remaining(rook) == 600
 
 
 def test_jump_cooldown_shorter_than_move_cooldown():
@@ -146,122 +193,3 @@ def test_jump_cooldown_shorter_than_move_cooldown():
     from realtime.jump import JUMP_COOLDOWN_MS
     assert JUMP_COOLDOWN_MS < COOLDOWN_MS
 
-
-# --- friendly destination ---
-
-def test_arrival_at_friendly_destination_returns_piece_to_origin():
-    rook = make_piece(0, 0)
-    friendly = make_piece(0, 1, kind=Kind.BISHOP)
-    board, arbiter = setup([rook, friendly])
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)
-    assert board.piece_at(Position(0, 0)) is rook
-    assert board.piece_at(Position(0, 1)) is friendly
-
-
-def test_arrival_at_friendly_destination_no_cooldown():
-    rook = make_piece(0, 0)
-    friendly = make_piece(0, 1, kind=Kind.BISHOP)
-    board, arbiter = setup([rook, friendly])
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)
-    assert not arbiter.is_piece_on_cooldown(rook)
-
-
-# --- airborne enemy ---
-
-def test_arrival_at_airborne_enemy_captures_mover():
-    rook = make_piece(0, 0)
-    enemy = make_piece(0, 1, color=Color.BLACK)
-    board, arbiter = setup([rook, enemy])
-    arbiter.start_jump(enemy)
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)
-    assert rook.state == PieceState.CAPTURED
-    assert board.piece_at(Position(0, 0)) is None
-
-
-def test_arrival_at_airborne_enemy_lands_jumper():
-    rook = make_piece(0, 0)
-    enemy = make_piece(0, 1, color=Color.BLACK)
-    board, arbiter = setup([rook, enemy])
-    arbiter.start_jump(enemy)
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)
-    assert board.piece_at(Position(0, 1)) is enemy
-    assert enemy.state == PieceState.IDLE
-
-
-def test_arrival_at_airborne_king_captures_mover():
-    rook = make_piece(0, 0)
-    king = make_piece(0, 1, kind=Kind.KING, color=Color.BLACK)
-    board, arbiter = setup([rook, king])
-    arbiter.start_jump(king)
-    arbiter.start_motion(rook, Position(0, 1))
-    arbiter.advance_time(1000)
-    assert rook.state == PieceState.CAPTURED
-    assert board.piece_at(Position(0, 1)) is king
-
-
-# --- landing ---
-
-def test_landing_on_enemy_captures_enemy():
-    rook = make_piece(0, 0)
-    enemy = make_piece(0, 0, color=Color.BLACK)
-    board = Board(8, 8)
-    board.add_piece(rook)
-    arbiter = RealTimeArbiter(board, RULES_BY_KIND)
-    arbiter.start_jump(rook)
-    board.add_piece(enemy)
-    arbiter.advance_time(1000)
-    assert enemy.state == PieceState.CAPTURED
-    assert board.piece_at(Position(0, 0)) is rook
-
-
-def test_landing_on_king_sets_game_over():
-    rook = make_piece(0, 0)
-    king = make_piece(0, 0, kind=Kind.KING, color=Color.BLACK)
-    board = Board(8, 8)
-    board.add_piece(rook)
-    arbiter = RealTimeArbiter(board, RULES_BY_KIND)
-    arbiter.start_jump(rook)
-    board.add_piece(king)
-    assert arbiter.advance_time(1000)
-
-
-# --- friendly airborne cells ---
-
-def test_friendly_airborne_cells_returns_jumped_cell():
-    rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_jump(rook)
-    assert Position(0, 0) in arbiter.friendly_airborne_cells(Color.WHITE)
-
-
-def test_friendly_airborne_cells_excludes_enemy():
-    rook = make_piece(0, 0)
-    enemy = make_piece(0, 1, color=Color.BLACK)
-    board, arbiter = setup([rook, enemy])
-    arbiter.start_jump(enemy)
-    assert Position(0, 1) not in arbiter.friendly_airborne_cells(Color.WHITE)
-
-
-def test_friendly_airborne_cells_empty_after_landing():
-    rook = make_piece(0, 0)
-    board, arbiter = setup([rook])
-    arbiter.start_jump(rook)
-    arbiter.advance_time(1000)
-    assert arbiter.friendly_airborne_cells(Color.WHITE) == set()
-
-
-# --- arrival order ---
-
-def test_earlier_arrival_wins_contested_destination():
-    rook1 = make_piece(0, 0)
-    rook2 = make_piece(0, 3, color=Color.BLACK)
-    board, arbiter = setup([rook1, rook2])
-    arbiter.start_motion(rook1, Position(0, 1))  # arrives at 1000ms
-    arbiter.start_motion(rook2, Position(0, 1))  # arrives at 2000ms
-    arbiter.advance_time(2000)
-    assert board.piece_at(Position(0, 1)) is rook2
-    assert rook1.state == PieceState.CAPTURED

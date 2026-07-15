@@ -1,127 +1,127 @@
-# מסמך דרישות פרויקט — Kong-Fu-Chess
+# Project Requirements Document — Kong-Fu-Chess
 
-> מסמך זה מבוסס על תמלול סרטון הדרישות של הפרויקט, מאורגן ומובנה עבור אגנט/צוות פיתוח.
-
----
-
-## 1. תיאור כללי
-
-Kong-Fu-Chess הוא משחק שחמט בזמן אמת (**Real-Time**), שבו **שני הצדדים זזים במקביל**, ללא תורות. לכל כלי לוקח זמן פיזי לנוע מהמשבצת שבה הוא נמצא אל היעד — התנועה אינה מיידית.
+> This document is based on a transcript of the project's requirements video, organized and structured for a development agent/team.
 
 ---
 
-## 2. כללי המשחק הבסיסי (חובה למימוש בשלב ראשון)
+## 1. General Description
 
-### 2.1 תנועה בזמן אמת
-- אין תורות — שני השחקנים יכולים להזיז כלים בכל רגע נתון, במקביל אחד לשני.
-- לכל מהלך של כלי יש **זמן תנועה** — הכלי "בדרך" עד שהוא מגיע ליעד, ולא מופיע שם באופן מיידי.
-
-### 2.2 מנוחה (Cooldown)
-- לאחר שכלי מסיים את התנועה ומגיע ליעד, הוא צריך **לנוח** לפרק זמן מסוים, ורק לאחר מכן יכול לזוז שוב.
-- ויזואלית: יש אנימציית מנוחה — "רקע צהוב יורד" מעל הכלי, שממחישה כמה זמן נותר עד שהכלי יוכל לזוז שוב.
-
-### 2.3 תנאי ניצחון
-- **ניצחון מתקבל רק כאשר אוכלים (תופסים) את המלך של היריב.**
-- **אין שח (Check) ואין מט (Checkmate)** במשחק הזה — ואין להם משמעות: אם כלי מנסה לזוז כדי לתפוס את המלך, למלך יש זמן לברוח לפני שהכלי מגיע אליו (כי לתנועה יש זמן פיזי).
-- כל עוד המלך של היריב לא נאכל בפועל — המשחק לא הוכרע.
-
-### 2.4 סימון מהלכים (Move Notation)
-- שימוש בסימון שחמט סטנדרטי (כדוגמת אלגברי):
-  - אות ראשונה = איזה סוג כלי זז (למשל `N` = פרש/סוס).
-  - שתי האותיות/הספרות הבאות = משבצת היעד (למשל `C6`).
-  - דוגמה: `NC6` = הפרש זז למשבצת C6.
-  - מהלך רגלי ללא ציון סוג כלי (למשל `E4`) — כברירת מחדל מדובר בחייל.
-  - `0-0` — סימון להצרחה (Castling).
-  - `X` — סימון לאכילת כלי (Capture), למשל אם כלי אוכל כלי במשבצת מסוימת.
-- **בניגוד לשחמט רגיל** (שם יש שני טורי מהלכים — "לבן" ו"שחור" לפי תור), כאן:
-  - יש **טור מהלכים נפרד לכל שחקן** (לבן בצד אחד, שחור בצד שני), כי אין תורות.
-  - **לכל מהלך מוצג חותמת הזמן (Timestamp)** שבו הוא בוצע — הזמן שבו הפקודה התקבלה בשרת (Server Time), ולא זמן הלקוח.
-
-### 2.5 ניקוד (Score)
-- מוצג ניקוד בראש הלוח לכל שחקן, לפי ערכי הכלים שנאכלו/הושגו:
-  - חייל = 1 נקודה
-  - פרש (סוס) = 3 נקודות
-  - רץ = 3 נקודות
-  - צריח = 5 נקודות
-  - מלכה = 9 נקודות
-  - מלך = אינסוף (אכילתו מסיימת את המשחק)
-- כאשר חייל מגיע לשורה האחרונה והופך למלכה (Promotion) — השחקן מקבל את נקודות המלכה (9) **גם אם לא אכל כלי**, בנוסף לכל נקודה שכבר צבר.
-- הניקוד מציג את ההפרש/סך הכל בכלים בין שני היריבים.
-
-### 2.6 תצוגת שמות שחקנים
-- יש להציג את שמות השחקנים (שם למעלה, שם למטה) כאשר משחקים מול שחקן אחר בשרת.
+Kong-Fu-Chess is a **real-time** chess game, in which **both sides move in parallel**, with no turns. Every piece takes physical time to move from its current square to its destination — the move is not instantaneous.
 
 ---
 
-## 3. דרישות מורחבות (מעבר למשחק הבסיסי — לקחת בחשבון בעיצוב, גם אם לא ממומשות מיידית)
+## 2. Basic Game Rules (mandatory for the first implementation phase)
 
-### 3.1 פקודת קפיצה (Dodge / Jump)
-פקודה נוספת שמאפשרת לכלי "לקפוץ במקום" (לא לזוז למשבצת אחרת בפועל, אלא סוג של הימנעות מקומית):
-- שימוש טיפוסי: אם כלי יריב מנסה לאכול את הכלי שלי, אני יכול להורות לו "לקפוץ במקום".
-- **זמן המנוחה (Cooldown) לאחר קפיצה קצר יותר** מאשר לאחר מהלך רגיל למשבצת אחרת — כי זו לא תזוזה "אמיתית" על הלוח.
-- כללי ההתנגשות בין קפיצה לתקיפה נכנסת:
-  - אם הכלי התוקף "נכנס" למשבצת בדיוק כשאני קופץ (כלומר אני עדיין בתהליך הקפיצה כשהוא מגיע) — **אני נוחת עליו ואוכל אותו**.
-  - אם אני נוחת (מסיים את הקפיצה) **לפני** שהתוקף מגיע אליי — אז בזמן שאני נח (בקירור), הוא יכול לאכול אותי כרגיל.
-  - כלומר: התזמון היחסי בין רגע הנחיתה של הקופץ לרגע הגעת התוקף קובע מי אוכל את מי.
+### 2.1 Real-time movement
+- No turns — both players can move pieces at any given moment, in parallel with each other.
+- Every piece move has a **movement time** — the piece is "on the way" until it reaches its destination, and does not appear there instantly.
 
-### 3.2 תמיכה בסוגי כלים נוספים (Extensible Piece Types)
-- דרישת עיצוב מרכזית: **להיות קל להוסיף סוג כלי חדש** למערכת, ללא צורך בשינויים נרחבים בקוד הקיים.
-- דוגמה לכלי חדש: **"רחפן" (Drone)**
-  - זז לאט יותר מכלים אחרים (מהירות תנועה נמוכה יחסית).
-  - יכול לזוז לכל משבצת פנויה בתוך **ריבוע של ± 2 משבצות** ממנו (ימינה/שמאלה/למעלה/למטה, טווח של עד 2 משבצות בכל כיוון — לא רק אלכסון או קו ישר, אלא כל משבצת בתוך הריבוע).
-- המשמעות המעשית: המבנה של "סוג כלי" (piece type) צריך להיות מוגדר באופן מודולרי — דפוסי תנועה, מהירות, וכללים מיוחדים לכל כלי צריכים להיות ניתנים להרחבה בקלות (למשל דרך קונפיגורציה/ממשק/מחלקה נפרדת לכל סוג כלי) ולא "חרוטים בסלע" בלוגיקה מרכזית אחת.
+### 2.2 Cooldown
+- After a piece finishes its move and reaches its destination, it needs to **rest** for a certain period, and only then can it move again.
+- Visually: there is a rest animation — a "yellow background descending" over the piece, illustrating how much time remains until the piece can move again.
 
-### 3.3 אנימציות
-- קיימת כבר אנימציית "מנוחה" (הרקע הצהוב שיורד מעל הכלי בזמן הקירור).
-- דרישות נוספות לאנימציה:
-  - **Idle (מנוחה/עמידה):** הכלי צריך "לנשום"/להתנועע קלות כשהוא עומד במקום (לא סטטי לחלוטין).
-  - **הליכה:** כשהכלי זז, יש להראות אנימציה של תנועה — למשל "הליכה עם רגליים" או קפיצות, כך שרואים חזותית איך הכלי הולך.
-  - **מנוחה בפועל:** כשהכלי נח (בקירור) יש להראות אנימציה שונה שמבטאת מנוחה.
-- **דרישת גמישות:** מערכת האנימציות צריכה להיות בנויה כך שיהיה **קל להחליף/לעדכן אנימציות** בעתיד.
-- ניתן להתחיל מאנימציות פשוטות (למשל שינוי צבע/צורה בסיסי) ולשדרג בהמשך לאנימציות מפורטות יותר.
+### 2.3 Victory condition
+- **Victory is achieved only when the opponent's king is actually captured.**
+- **There is no check and no checkmate** in this game — and they have no meaning: if a piece tries to move in order to capture the king, the king has time to flee before the piece reaches it (because a move takes physical time).
+- As long as the opponent's king has not actually been captured — the game is not decided.
 
-### 3.4 ארכיטקטורת שרת ותמיכה בעומס (Scalability — דרישת מערכת, לא דרישת משחק)
-זוהי דרישה שאינה חלק מלוגיקת המשחק עצמה, אלא דרישה על **המערכת** (התשתית) שמסביב:
-- יש לתכנן את השרת כך שניתן יהיה תיאורטית **להרחיב אותו לתמיכה במיליוני שחקנים** הפועלים בו-זמנית.
-- נדרש מנגנון **תיווך (Matchmaking)** — שחקן מתחבר לשרת, ומנגנון כלשהו מצמיד/מזווג בין שחקנים למשחקים.
-- אם יש שרת חזק מספיק, המערכת צריכה לתמוך בכמות גדולה מאוד של משתמשים במקביל.
-- **עיצוב התקשורת בין הלקוח לשרת (Networking) לא אמור ליצור צווארי בקבוק (Bottlenecks)** שיפגעו בחוויית המשחק ובזרימת המידע (מהלכים) בין השחקנים השונים.
-- המשמעות: יש לתכנן את שכבת התקשורת/הפרוטוקול מראש עם מחשבה על יעילות וסקיילביליות, גם אם המימוש הראשוני יהיה בסיסי.
+### 2.4 Move Notation
+- Uses standard chess-like notation:
+  - First letter = which piece kind moved (e.g. `N` = knight).
+  - The next two letters/digits = the destination square (e.g. `C6`).
+  - Example: `NC6` = the knight moved to square C6.
+  - A pawn move with no piece kind specified (e.g. `E4`) — defaults to a pawn.
+  - `0-0` — castling notation.
+  - `X` — capture notation, e.g. if a piece captures a piece on a given square.
+- **Unlike regular chess** (where there are two move columns — "White" and "Black" by turn), here:
+  - There is a **separate move column for each player** (White on one side, Black on the other), because there are no turns.
+  - **Every move displays a timestamp** of when it was performed — the time the command was received at the server (Server Time), not client time.
 
----
+### 2.5 Score
+- A score is displayed at the top of the board for each player, based on the value of pieces captured/achieved:
+  - Pawn = 1 point
+  - Knight = 3 points
+  - Bishop = 3 points
+  - Rook = 5 points
+  - Queen = 9 points
+  - King = infinite (capturing it ends the game)
+- When a pawn reaches the last row and becomes a queen (Promotion) — the player receives the queen's points (9) **even if it did not capture a piece**, in addition to any points already accumulated.
+- The score shows the difference/total in pieces between the two opponents.
 
-## 4. עקרונות עיצוב (Design Principles) — חשוב לאגנט לפעול לפיהם
-
-1. **גמישות מדודה, לא הגזמה:**
-   - יש לתכנן את הקוד כך שיהיה **קל להוסיף** את היכולות הצפויות מראש (כלים חדשים, אנימציות חדשות, פקודות חדשות כמו קפיצה).
-   - **אין** לבנות הפשטות (abstractions), ממשקים (interfaces) ושכבות גמישות עודפות "למקרה שיהיה צריך" — קוד גמיש מדי שאינו בשימוש בפועל הוא נטל, לא יתרון.
-   - המטרה: איזון בין קוד נקי וממוקד לבין מקום להתרחבות עתידית ריאלית וידועה מראש (הדרישות שבסעיף 3).
-
-2. **הפרדה בין "מה ידוע היום" ל"מה צפוי מחר":**
-   - הדרישות בסעיף 2 הן ליבת המשחק — יש לממש אותן ראשונות ובאופן מלא.
-   - הדרישות בסעיף 3 לא חייבות מימוש מיידי, אך **חובה לקחת אותן בחשבון בזמן העיצוב** (data model, ארכיטקטורת מודולים, ממשקי piece/animation/networking) כך שהוספתן בהמשך תהיה פשוטה וללא שכתוב מסיבי.
-
-3. **שרת כמקור אמת (Source of Truth):**
-   - כל מהלך מתועד עם **חותמת הזמן של השרת**, לא של הלקוח — זהו הבסיס גם לקביעת מי הגיע קודם במקרה של התנגשות תזמון בין שני מהלכים (למשל בתרחיש הקפיצה בסעיף 3.1).
+### 2.6 Player Name Display
+- Player names must be displayed (one name on top, one on the bottom) when playing against another player on the server.
 
 ---
 
-## 5. סיכום טבלאי — ליבה מול הרחבות
+## 3. Extended Requirements (beyond the basic game — to be taken into account in the design, even if not implemented immediately)
 
-| # | דרישה | סטטוס | הערה |
+### 3.1 Jump / Dodge Command
+An additional command that lets a piece "jump in place" (not actually move to another square, but a kind of local evasion):
+- Typical use: if an enemy piece tries to capture my piece, I can order it to "jump in place".
+- **The cooldown after a jump is shorter** than after a regular move to another square — because it isn't a "real" move on the board.
+- Collision rules between a jump and an incoming attack:
+  - If the attacking piece "enters" the square exactly while I'm jumping (i.e. I'm still in the jump process when it arrives) — **I land on it and capture it**.
+  - If I land (finish the jump) **before** the attacker arrives — then while I'm resting (on cooldown), it can capture me as usual.
+  - In other words: the relative timing between the jumper's landing moment and the attacker's arrival moment determines who captures whom.
+
+### 3.2 Support for Additional Piece Types (Extensible Piece Types)
+- A core design requirement: it should be **easy to add a new piece kind** to the system, without requiring extensive changes to existing code.
+- Example of a new piece: a **"Drone"**
+  - Moves slower than other pieces (relatively low movement speed).
+  - Can move to any free square within a **±2 square range** from it (right/left/up/down, up to 2 squares in every direction — not just diagonal or straight lines, but any square within that square-shaped range).
+- Practical implication: the "piece type" structure must be modular — movement patterns, speed, and special rules per piece must be easily extensible (e.g. via configuration/interface/separate class per piece kind) and not "carved in stone" in one central logic block.
+
+### 3.3 Animations
+- There's already a "rest" animation (the yellow background descending over the piece during cooldown).
+- Additional animation requirements:
+  - **Idle:** the piece should "breathe"/move slightly while standing still (not completely static).
+  - **Walking:** when the piece moves, the movement should be shown visually — e.g. "walking with legs" or hops, so you can visually see how the piece moves.
+  - **Actual resting:** when the piece rests (on cooldown), a different animation should be shown that expresses resting.
+- **Flexibility requirement:** the animation system should be built so it's **easy to swap/update animations** in the future.
+- You can start with simple animations (e.g. basic color/shape change) and upgrade later to more detailed animations.
+
+### 3.4 Server Architecture and Load Support (Scalability — a system requirement, not a game-logic requirement)
+This is a requirement that isn't part of the game logic itself, but a requirement on the **system** (the surrounding infrastructure):
+- The server should be designed so that it could theoretically **scale to support millions of simultaneous players**.
+- A **matchmaking** mechanism is required — a player connects to the server, and some mechanism pairs/matches players into games.
+- Given a strong enough server, the system should support a very large number of concurrent users.
+- **The client-server communication (networking) design must not create bottlenecks** that would harm the game experience and the flow of information (moves) between different players.
+- Implication: the communication layer/protocol should be designed in advance with efficiency and scalability in mind, even if the initial implementation is basic.
+
+---
+
+## 4. Design Principles — important for the agent to follow
+
+1. **Measured flexibility, not overkill:**
+   - The code should be designed so it's **easy to add** the capabilities expected in advance (new pieces, new animations, new commands like jump).
+   - **Do not** build unused abstractions, interfaces, and flexible layers "just in case" — overly flexible code that isn't actually used is a burden, not a benefit.
+   - Goal: balance between clean, focused code and room for realistic, known future growth (the requirements in section 3).
+
+2. **Separation between "what's known today" and "what's expected tomorrow":**
+   - The requirements in section 2 are the core of the game — they must be implemented first and fully.
+   - The requirements in section 3 don't need immediate implementation, but **must be taken into account during design** (data model, module architecture, piece/animation/networking interfaces) so that adding them later is simple and doesn't require a massive rewrite.
+
+3. **Server as the Source of Truth:**
+   - Every move is logged with the **server's timestamp**, not the client's — this is also the basis for determining who arrived first in case of a timing collision between two moves (e.g. the jump scenario in section 3.1).
+
+---
+
+## 5. Summary Table — Core vs. Extensions
+
+| # | Requirement | Status | Note |
 |---|---|---|---|
-| 1 | תנועה בזמן אמת, ללא תורות | חובה — MVP | |
-| 2 | זמן תנועה פיזי בין משבצות | חובה — MVP | |
-| 3 | קירור (Cooldown) אחרי מהלך | חובה — MVP | |
-| 4 | ניצחון = אכילת מלך בפועל | חובה — MVP | אין שח/מט/פאט |
-| 5 | סימון מהלכים + חותמת זמן שרת | חובה — MVP | טור נפרד לכל שחקן |
-| 6 | ניקוד לפי ערכי כלים | חובה — MVP | כולל בונוס הכתרה |
-| 7 | תצוגת שמות שחקנים | חובה — MVP | |
-| 8 | פקודת קפיצה/דודג' | הרחבה עתידית | לתכנן מראש לוגיקת תזמון |
-| 9 | סוגי כלים נוספים (לדוגמה: רחפן) | הרחבה עתידית | ליבת piece חייבת להיות מודולרית |
-| 10 | אנימציות (idle, הליכה, מנוחה) | הרחבה עתידית | להתחיל פשוט, לשדרג בהמשך |
-| 11 | סקיילביליות שרת + Matchmaking | דרישת מערכת | לא חלק מלוגיקת המשחק עצמה |
+| 1 | Real-time movement, no turns | Mandatory — MVP | |
+| 2 | Physical movement time between squares | Mandatory — MVP | |
+| 3 | Cooldown after a move | Mandatory — MVP | |
+| 4 | Victory = actually capturing the king | Mandatory — MVP | No check/checkmate/stalemate |
+| 5 | Move notation + server timestamp | Mandatory — MVP | Separate column per player |
+| 6 | Score based on piece values | Mandatory — MVP | Includes promotion bonus |
+| 7 | Player name display | Mandatory — MVP | |
+| 8 | Jump/dodge command | Future extension | Plan the timing logic in advance |
+| 9 | Additional piece types (e.g. Drone) | Future extension | The piece core must be modular |
+| 10 | Animations (idle, walking, resting) | Future extension | Start simple, upgrade later |
+| 11 | Server scalability + Matchmaking | System requirement | Not part of the game logic itself |
 
 ---
 
-*מסמך זה נועד לשמש בסיס עבודה מלא לאגנט הפיתוח, המשלב הן את כללי המשחק הבסיסיים והן את דרישות ההרחבה העתידיות, יחד עם עקרונות העיצוב שהמזמין הדגיש (גמישות מבוקרת, לא-הגזמה בהפשטות).*
+*This document is meant to serve as a complete working basis for the development agent, combining both the basic game rules and the future extension requirements, along with the design principles the client emphasized (controlled flexibility, no overkill in abstractions).*

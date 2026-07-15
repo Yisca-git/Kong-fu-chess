@@ -5,16 +5,18 @@ from model.position import Position
 from rules.rule_engine import RuleEngine
 from engine.move_result import MoveResult
 from engine.game_snapshot import GameSnapshot
+from engine.arrival_resolver import ArrivalResolver
 
 if TYPE_CHECKING:
     from realtime.real_time_arbiter import RealTimeArbiter
 
 
 class GameEngine:
-    def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter):
+    def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter, resolver: ArrivalResolver):
         self._board       = board
         self._rule_engine = rule_engine
         self._arbiter     = arbiter
+        self._resolver    = resolver
         self.game_over    = False
 
     def request_move(self, source: Position, destination: Position) -> MoveResult:
@@ -59,12 +61,14 @@ class GameEngine:
         if self._arbiter.is_piece_on_cooldown(piece):
             return MoveResult(False, MoveResult.PIECE_ON_COOLDOWN)
 
+        self._board.remove_piece(pos)
         self._arbiter.start_jump(piece)
         return MoveResult(True, MoveResult.OK)
 
     def advance_time(self, ms: int) -> None:
-        """Advances the game clock and resolves arrivals via the arbiter."""
-        if self._arbiter.advance_time(ms):
+        """Advances the game clock. The arbiter tracks timing only; the resolver applies
+        every due arrival/landing to the board."""
+        if self._arbiter.advance_time(ms, self._resolver):
             self.game_over = True
 
     def piece_at(self, pos: Position) -> bool:

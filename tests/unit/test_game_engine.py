@@ -5,6 +5,7 @@ from realtime.real_time_arbiter import RealTimeArbiter
 from rules.rule_engine import RuleEngine
 from rules.rules_registry import RULES_BY_KIND
 from engine.game_engine import GameEngine
+from engine.arrival_resolver import ArrivalResolver
 
 
 def make_piece(row, col, kind=Kind.ROOK, color=Color.WHITE):
@@ -15,8 +16,9 @@ def setup(pieces):
     board = Board(8, 8)
     for p in pieces:
         board.add_piece(p)
-    arbiter = RealTimeArbiter(board, RULES_BY_KIND)
-    engine  = GameEngine(board, RuleEngine(), arbiter)
+    arbiter  = RealTimeArbiter()
+    resolver = ArrivalResolver(board, RULES_BY_KIND, arbiter)
+    engine   = GameEngine(board, RuleEngine(), arbiter, resolver)
     return board, engine
 
 
