@@ -4,6 +4,7 @@ from model.position import Position
 from realtime.real_time_arbiter import RealTimeArbiter
 from rules.rules_registry import RULES_BY_KIND
 from engine.arrival_resolver import ArrivalResolver
+from engine.score_keeper import ScoreKeeper
 
 
 def make_piece(row, col, kind=Kind.ROOK, color=Color.WHITE):
@@ -15,7 +16,7 @@ def setup(pieces):
     for p in pieces:
         board.add_piece(p)
     arbiter  = RealTimeArbiter()
-    resolver = ArrivalResolver(board, RULES_BY_KIND, arbiter)
+    resolver = ArrivalResolver(board, RULES_BY_KIND, arbiter, ScoreKeeper())
     return board, arbiter, resolver
 
 

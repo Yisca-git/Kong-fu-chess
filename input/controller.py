@@ -17,10 +17,12 @@ class Controller:
         return 0 <= pos.row < self._board_rows and 0 <= pos.col < self._board_cols
 
     def handle_jump(self, x: int, y: int) -> None:
-        """Handles a pixel-space right-click: issues a jump command for the piece at the given position."""
+        """Handles a pixel-space right-click: issues a jump command and clears selection."""
         pos = pixel_to_position(x, y)
         if self._in_bounds(pos):
             self._engine.request_jump(pos)
+        self._selected = None
+        self._engine.set_selected(None)
 
     def handle_click(self, x: int, y: int) -> None:
         """Handles a pixel-space click: selects a piece or issues a move command."""
@@ -28,15 +30,19 @@ class Controller:
 
         if not self._in_bounds(pos):
             self._selected = None
+            self._engine.set_selected(None)
             return
 
         if self._selected is None:
             if self._engine.piece_at(pos):
                 self._selected = pos
+                self._engine.set_selected(pos)
             return
 
         result = self._engine.request_move(self._selected, pos)
         if result.reason == MoveResult.FRIENDLY_DESTINATION:
             self._selected = pos
+            self._engine.set_selected(pos)
         else:
             self._selected = None
+            self._engine.set_selected(None)

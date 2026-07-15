@@ -166,7 +166,7 @@ def test_cancel_jump_removes_pending_jump():
 def test_set_cooldown_then_is_on_cooldown():
     rook = make_piece(0, 0)
     arbiter = RealTimeArbiter()
-    arbiter.set_cooldown(rook, 1000)
+    arbiter.set_cooldown(rook, 1000, 1000)
     assert arbiter.is_piece_on_cooldown(rook)
 
 
@@ -174,8 +174,8 @@ def test_cooldown_expires_after_clock_passes_ready_time():
     rook = make_piece(0, 0)
     arbiter = RealTimeArbiter()
     resolver = _SpyResolver()
-    arbiter.set_cooldown(rook, 500)
-    arbiter.advance_time(500, resolver)  # no pending motions/jumps, just advances the clock
+    arbiter.set_cooldown(rook, 500, 500)
+    arbiter.advance_time(500, resolver)
     assert not arbiter.is_piece_on_cooldown(rook)
 
 
@@ -183,7 +183,7 @@ def test_cooldown_remaining_decreases_over_time():
     rook = make_piece(0, 0)
     arbiter = RealTimeArbiter()
     resolver = _SpyResolver()
-    arbiter.set_cooldown(rook, 1000)
+    arbiter.set_cooldown(rook, 1000, 1000)
     arbiter.advance_time(400, resolver)
     assert arbiter.cooldown_remaining(rook) == 600
 

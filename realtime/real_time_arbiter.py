@@ -22,7 +22,33 @@ class RealTimeArbiter:
         self._clock     = 0
         self._motions:   list[Motion] = []
         self._jumps:     list[Jump]   = []
-        self._cooldowns: dict[str, int] = {}  # piece.id → ready_time
+        self._cooldowns: dict[str, tuple[int, int]] = {}  # piece.id → (ready_time, total_ms)
+
+    def cooldown_progress_for(self, piece: Piece) -> float:
+        """Returns 1.0 (just started cooldown) down to 0.0 (ready). 0.0 if not on cooldown."""
+        entry = self._cooldowns.get(piece.id)
+        if entry is None:
+            return 0.0
+        ready_time, total_ms = entry
+        remaining = ready_time - self._clock
+        if remaining <= 0 or total_ms <= 0:
+            return 0.0
+        return min(1.0, remaining / total_ms)
+
+    def motion_destination_for(self, piece: Piece) -> Position | None:
+        """Returns the destination Position of a moving piece, or None if not in motion."""
+        motion = next((m for m in self._motions if m.piece == piece), None)
+        return motion.destination if motion else None
+
+    def motion_progress_for(self, piece: Piece) -> float:
+        """Returns 0.0..1.0 progress for a moving piece, or 1.0 if not in motion."""
+        motion = next((m for m in self._motions if m.piece == piece), None)
+        if motion is None:
+            return 1.0
+        total = motion.arrival_time - motion.start_time
+        if total <= 0:
+            return 1.0
+        return min(1.0, (self._clock - motion.start_time) / total)
 
     def is_piece_moving(self, piece: Piece) -> bool:
         """Returns True if the given piece already has an active motion."""
@@ -38,11 +64,11 @@ class RealTimeArbiter:
 
     def is_piece_on_cooldown(self, piece: Piece) -> bool:
         """Returns True if the piece is resting after a move or jump."""
-        return self._cooldowns.get(piece.id, 0) > self._clock
+        return self._cooldowns.get(piece.id, (0,))[0] > self._clock
 
     def cooldown_remaining(self, piece: Piece) -> int:
         """Returns remaining cooldown in ms, or 0 if ready."""
-        return max(0, self._cooldowns.get(piece.id, 0) - self._clock)
+        return max(0, self._cooldowns.get(piece.id, (0,))[0] - self._clock)
 
     def airborne_pieces(self) -> list[Piece]:
         """Returns all pieces currently airborne."""
@@ -77,9 +103,9 @@ class RealTimeArbiter:
         (e.g. the jumper lands early because it captured an arriving attacker)."""
         self._jumps = [j for j in self._jumps if j is not jump]
 
-    def set_cooldown(self, piece: Piece, ready_time: int) -> None:
+    def set_cooldown(self, piece: Piece, ready_time: int, total_ms: int) -> None:
         """Records when the given piece will be ready to act again."""
-        self._cooldowns[piece.id] = ready_time
+        self._cooldowns[piece.id] = (ready_time, total_ms)
 
     def _next_event_time(self, target_time: int) -> int:
         """Returns the earliest arrival or landing time up to target_time."""

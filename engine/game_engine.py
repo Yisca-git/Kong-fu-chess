@@ -6,18 +6,23 @@ from rules.rule_engine import RuleEngine
 from engine.move_result import MoveResult
 from engine.game_snapshot import GameSnapshot
 from engine.arrival_resolver import ArrivalResolver
+from engine.score_keeper import ScoreKeeper
+from model.piece import Color
 
 if TYPE_CHECKING:
     from realtime.real_time_arbiter import RealTimeArbiter
 
 
 class GameEngine:
-    def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter, resolver: ArrivalResolver):
-        self._board       = board
-        self._rule_engine = rule_engine
-        self._arbiter     = arbiter
-        self._resolver    = resolver
-        self.game_over    = False
+    def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter,
+                 resolver: ArrivalResolver, score_keeper: ScoreKeeper):
+        self._board        = board
+        self._rule_engine   = rule_engine
+        self._arbiter       = arbiter
+        self._resolver      = resolver
+        self._score_keeper = score_keeper
+        self.game_over     = False
+        self._selected:    Position | None = None
 
     def request_move(self, source: Position, destination: Position) -> MoveResult:
         """Validates and initiates a move request. Returns MoveResult with outcome reason."""
@@ -71,15 +76,29 @@ class GameEngine:
         if self._arbiter.advance_time(ms, self._resolver):
             self.game_over = True
 
+    def set_selected(self, pos: Position | None) -> None:
+        """Called by Controller to keep the snapshot in sync with the current selection."""
+        self._selected = pos
+
     def piece_at(self, pos: Position) -> bool:
         """Returns True if a piece exists at the given position. Used by Controller to check for empty cells."""
         return self._board.piece_at(pos) is not None
 
     def snapshot(self) -> GameSnapshot:
-        """Returns a read-only snapshot of the current game state, including airborne pieces."""
+        """Returns a read-only snapshot of the current game state, including airborne pieces
+        and each side's score."""
         return GameSnapshot.from_pieces(
             self._board.all_pieces() + self._arbiter.airborne_pieces(),
             self.game_over,
             self._board.rows,
             self._board.cols,
+            self._score_keeper.score(Color.WHITE),
+            self._score_keeper.score(Color.BLACK),
+            self._selected.row if self._selected else None,
+            self._selected.col if self._selected else None,
+            self._arbiter.motion_progress_for,
+            self._arbiter.motion_destination_for,
+            self._resolver.move_log,
+            self._arbiter.cooldown_progress_for,
+            self._resolver.winner,
         )
