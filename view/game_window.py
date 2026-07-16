@@ -3,10 +3,8 @@ import time
 import cv2
 from engine.game_engine import GameEngine
 from input.controller import Controller
-from view.renderer import Renderer, PANEL_W
-
-WINDOW_NAME = "Kong-Fu-Chess"
-TICK_MS     = 16  # ~60 FPS
+from view.renderer import Renderer
+from view.config import PANEL_W, TICK_MS, WINDOW_NAME
 
 
 class GameWindow:
@@ -25,6 +23,7 @@ class GameWindow:
     def _on_mouse(self, event: int, x: int, y: int, flags: int, param) -> None:
         """cv2 mouse callback: translates window coords to board coords by subtracting PANEL_W."""
         board_x = x - PANEL_W
+        self._engine.set_cursor(board_x, y)
         if event == cv2.EVENT_LBUTTONDOWN:
             self._controller.handle_click(board_x, y)
         elif event == cv2.EVENT_RBUTTONDOWN:
@@ -32,7 +31,7 @@ class GameWindow:
 
     def run(self) -> None:
         """Runs the main loop until the window is closed, or Esc/q is pressed."""
-        cv2.namedWindow(WINDOW_NAME)
+        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
         cv2.setMouseCallback(WINDOW_NAME, self._on_mouse)
 
         start_ms = time.monotonic() * 1000
@@ -48,7 +47,9 @@ class GameWindow:
 
                 snapshot = self._engine.snapshot()
                 canvas   = self._renderer.render(snapshot, int(now_ms - start_ms))
-                cv2.imshow(WINDOW_NAME, canvas.img)
+                cv2.imshow(WINDOW_NAME, canvas.raw())
+                if snapshot.rejection_reason is not None:
+                    self._engine.set_rejection(None)
 
                 key = cv2.waitKey(TICK_MS) & 0xFF
                 if key in (27, ord('q')):  # Esc or q

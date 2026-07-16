@@ -193,6 +193,54 @@ def test_friendly_airborne_cells_empty_after_landing():
     assert arbiter.friendly_airborne_cells(Color.WHITE) == set()
 
 
+# --- jump cancelled when attacker arrives on same tick ---
+
+def test_attacker_arriving_same_tick_as_jump_land_does_not_double_resolve():
+    """Regression: when a motion and a jump land on the same tick, cancel_jump must
+    prevent resolve_landing from running on the already-settled jump."""
+    rook  = make_piece(0, 0)                          # attacker, moves 1 square -> arrives at 1000ms
+    enemy = make_piece(0, 1, color=Color.BLACK)       # jumper, jump duration = 1000ms -> lands at 1000ms
+    board, arbiter, resolver = setup([rook, enemy])
+    arbiter.start_jump(enemy)
+    board.remove_piece(Position(0, 1))
+    arbiter.start_motion(rook, Position(0, 1))        # both events due at exactly 1000ms
+    arbiter.advance_time(1000, resolver)              # must not raise ValueError
+    assert rook.state == PieceState.CAPTURED
+    assert board.piece_at(Position(0, 1)) is enemy
+    assert enemy.state == PieceState.IDLE
+
+
+# --- landing on friendly piece ---
+
+def test_landing_on_friendly_returns_friendly_to_origin():
+    """If a friendly piece arrived at the landing cell while the jumper was airborne,
+    the friendly piece returns to its origin and the jumper lands normally."""
+    white_rook1 = make_piece(0, 1)                        # friendly, moves into the jump cell
+    white_rook2 = make_piece(0, 0)                        # jumps from (0,0)
+    board, arbiter, resolver = setup([white_rook1, white_rook2])
+    arbiter.start_jump(white_rook2)
+    board.remove_piece(Position(0, 0))
+    arbiter.start_motion(white_rook1, Position(0, 0))     # friendly moves into the now-empty cell
+    arbiter.advance_time(2000, resolver)
+    assert white_rook2.state == PieceState.IDLE
+    assert board.piece_at(Position(0, 0)) is white_rook2  # jumper lands
+    assert board.piece_at(Position(0, 1)) is white_rook1  # friendly back at origin
+
+
+def test_landing_on_enemy_after_enemy_moved_in_captures_enemy():
+    """If an enemy piece moves into the landing cell while the jumper is airborne,
+    the jumper lands and captures the enemy normally."""
+    white_rook = make_piece(0, 1)                         # enemy, moves into the jump cell
+    black_rook = make_piece(0, 0, color=Color.BLACK)      # jumps from (0,0)
+    board, arbiter, resolver = setup([white_rook, black_rook])
+    arbiter.start_jump(black_rook)
+    board.remove_piece(Position(0, 0))
+    arbiter.start_motion(white_rook, Position(0, 0))      # enemy moves into the now-empty cell
+    arbiter.advance_time(2000, resolver)
+    assert white_rook.state == PieceState.CAPTURED
+    assert board.piece_at(Position(0, 0)) is black_rook
+
+
 # --- arrival order ---
 
 def test_earlier_arrival_wins_contested_destination():
@@ -204,3 +252,86 @@ def test_earlier_arrival_wins_contested_destination():
     arbiter.advance_time(2000, resolver)
     assert board.piece_at(Position(0, 1)) is rook2
     assert rook1.state == PieceState.CAPTURED
+
+
+# --- airborne enemy: event publishing ---
+
+def test_airborne_enemy_capture_publishes_jump_event():
+    """When a moving piece is captured by an airborne jumper, a JumpResolvedEvent
+    must be published so score and move-log are updated."""
+    rook  = make_piece(0, 0)
+    enemy = make_piece(0, 1, color=Color.BLACK)
+    board, arbiter, resolver = setup([rook, enemy])
+    events = []
+    resolver.add_settlement_listener(events.append)
+
+    arbiter.start_jump(enemy)
+    board.remove_piece(Position(0, 1))
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(1000, resolver)
+
+    from view.events.events import JumpResolvedEvent
+    jump_events = [e for e in events if isinstance(e, JumpResolvedEvent)]
+    assert len(jump_events) == 1
+    assert jump_events[0].captured_piece_kind == rook.kind.value
+    assert jump_events[0].piece_color == enemy.color.value
+
+
+def test_airborne_enemy_capture_has_capture_flag_in_log():
+    """The move-log entry for an airborne capture must have is_capture=True (X in notation)."""
+    rook  = make_piece(0, 0)
+    enemy = make_piece(0, 1, color=Color.BLACK)
+    board, arbiter, resolver = setup([rook, enemy])
+
+    arbiter.start_jump(enemy)
+    board.remove_piece(Position(0, 1))
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(1000, resolver)
+
+    assert any("X" in e.notation for e in resolver.move_log)
+
+
+def test_airborne_enemy_capture_increments_score():
+    """ScoreObserver must receive the JumpResolvedEvent and add the captured piece's value."""
+    from view.events.event_bus import EventBus
+    from view.events.events import JumpResolvedEvent
+    from view.events.observers.score_observer import ScoreObserver
+
+    rook  = make_piece(0, 0, kind=Kind.ROOK)          # value=5, captured by enemy
+    enemy = make_piece(0, 1, color=Color.BLACK, kind=Kind.KNIGHT)
+    board, arbiter, resolver = setup([rook, enemy])
+
+    bus   = EventBus()
+    score = ScoreObserver()
+    bus.subscribe(JumpResolvedEvent, score.on_jump_resolved)
+    resolver.add_settlement_listener(bus.publish)
+
+    arbiter.start_jump(enemy)
+    board.remove_piece(Position(0, 1))
+    arbiter.start_motion(rook, Position(0, 1))
+    arbiter.advance_time(1000, resolver)
+
+    assert score.score["b"] == 5  # rook value
+
+
+def test_airborne_king_capture_does_not_add_score():
+    """Capturing a king via airborne must not add score (game ends, K has no value)."""
+    from view.events.event_bus import EventBus
+    from view.events.events import JumpResolvedEvent
+    from view.events.observers.score_observer import ScoreObserver
+
+    king  = make_piece(0, 0, kind=Kind.KING)
+    enemy = make_piece(0, 1, color=Color.BLACK, kind=Kind.KNIGHT)
+    board, arbiter, resolver = setup([king, enemy])
+
+    bus   = EventBus()
+    score = ScoreObserver()
+    bus.subscribe(JumpResolvedEvent, score.on_jump_resolved)
+    resolver.add_settlement_listener(bus.publish)
+
+    arbiter.start_jump(enemy)
+    board.remove_piece(Position(0, 1))
+    arbiter.start_motion(king, Position(0, 1))
+    arbiter.advance_time(1000, resolver)
+
+    assert score.score["b"] == 0

@@ -29,6 +29,11 @@ class GameSnapshot:
     selected_col: int | None = None
     move_log:     tuple[MoveEntry, ...] = ()
     winner:       str | None = None  # "w" or "b", set when game_over is True
+    white_name:   str = "White"
+    black_name:   str = "Black"
+    rejection_reason: str | None = None  # set for one frame when a move/jump is rejected
+    cursor_x: int | None = None  # raw canvas pixel x (board area only, None if outside)
+    cursor_y: int | None = None
 
     @staticmethod
     def from_pieces(pieces: list[Piece], game_over: bool, rows: int, cols: int,
@@ -37,7 +42,12 @@ class GameSnapshot:
                      motion_progress_for=None, motion_destination_for=None,
                      move_log: list[MoveEntry] | None = None,
                      cooldown_progress_for=None,
-                     winner: str | None = None) -> 'GameSnapshot':
+                     winner: str | None = None,
+                     white_name: str = "White",
+                     black_name: str = "Black",
+                     rejection_reason: str | None = None,
+                     cursor_x: int | None = None,
+                     cursor_y: int | None = None) -> 'GameSnapshot':
         """Creates a read-only snapshot from the current list of pieces."""
         def _progress(p: Piece) -> float:
             return motion_progress_for(p) if motion_progress_for else 1.0
@@ -57,4 +67,6 @@ class GameSnapshot:
         )
         return GameSnapshot(snapshots, game_over, rows, cols, white_score, black_score,
                             selected_row, selected_col, tuple(move_log) if move_log else (),
-                            winner)
+                            winner, white_name, black_name,
+                            rejection_reason=rejection_reason,
+                            cursor_x=cursor_x, cursor_y=cursor_y)

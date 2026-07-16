@@ -23,20 +23,30 @@ def setup(pieces):
     return board, engine
 
 
-def test_rejects_move_when_game_over():
+def _trigger_game_over(engine, board):
+    """Captures the black king to set game_over via real engine logic."""
     rook = make_piece(0, 0)
+    king = make_piece(0, 1, kind=Kind.KING, color=Color.BLACK)
+    board.add_piece(rook)
+    board.add_piece(king)
+    engine.request_move(Position(0, 0), Position(0, 1))
+    engine.advance_time(1000)
+
+
+def test_rejects_move_when_game_over():
+    rook = make_piece(0, 4)
     board, engine = setup([rook])
-    engine.game_over = True
-    result = engine.request_move(Position(0, 0), Position(0, 4))
+    _trigger_game_over(engine, board)
+    result = engine.request_move(Position(0, 1), Position(0, 4))
     assert not result.is_accepted
     assert result.reason == "game_over"
 
 
 def test_rejects_jump_when_game_over():
-    rook = make_piece(0, 0)
+    rook = make_piece(0, 4)
     board, engine = setup([rook])
-    engine.game_over = True
-    result = engine.request_jump(Position(0, 0))
+    _trigger_game_over(engine, board)
+    result = engine.request_jump(Position(0, 1))
     assert not result.is_accepted
     assert result.reason == "game_over"
 
@@ -127,3 +137,26 @@ def test_snapshot_reflects_current_state():
     assert len(snapshot.pieces) == 1
     assert snapshot.pieces[0].row == 0
     assert snapshot.pieces[0].col == 0
+
+
+# --- player names ---
+
+def test_snapshot_default_player_names():
+    rook = make_piece(0, 0)
+    board, engine = setup([rook])
+    snapshot = engine.snapshot()
+    assert snapshot.white_name == "White"
+    assert snapshot.black_name == "Black"
+
+
+def test_snapshot_custom_player_names():
+    rook = make_piece(0, 0)
+    board = Board(8, 8)
+    board.add_piece(rook)
+    arbiter  = RealTimeArbiter()
+    resolver = ArrivalResolver(board, RULES_BY_KIND, arbiter, ScoreKeeper())
+    engine   = GameEngine(board, RuleEngine(), arbiter, resolver, ScoreKeeper(),
+                          white_name="Alice", black_name="Bob")
+    snapshot = engine.snapshot()
+    assert snapshot.white_name == "Alice"
+    assert snapshot.black_name == "Bob"

@@ -15,14 +15,20 @@ if TYPE_CHECKING:
 
 class GameEngine:
     def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter,
-                 resolver: ArrivalResolver, score_keeper: ScoreKeeper):
+                 resolver: ArrivalResolver, score_keeper: ScoreKeeper,
+                 white_name: str = "White", black_name: str = "Black"):
         self._board        = board
         self._rule_engine   = rule_engine
         self._arbiter       = arbiter
         self._resolver      = resolver
         self._score_keeper = score_keeper
-        self.game_over     = False
+        self._game_over    = False
         self._selected:    Position | None = None
+        self._white_name   = white_name
+        self._black_name   = black_name
+        self._rejection_reason: str | None = None
+        self._cursor_x:    int | None = None
+        self._cursor_y:    int | None = None
 
     def request_move(self, source: Position, destination: Position) -> MoveResult:
         """Validates and initiates a move request. Returns MoveResult with outcome reason."""
@@ -43,9 +49,11 @@ class GameEngine:
         friendly_airborne = self._arbiter.friendly_airborne_cells(piece.color)
         validation        = self._rule_engine.validate(self._board, source, destination, moving_origins, friendly_airborne)
         if not validation.is_valid:
+            self._rejection_reason = validation.reason
             return MoveResult(False, validation.reason)
 
         self._arbiter.start_motion(piece, destination)
+        self._rejection_reason = None
         return MoveResult(True, MoveResult.OK)
 
     def request_jump(self, pos: Position) -> MoveResult:
@@ -68,17 +76,35 @@ class GameEngine:
 
         self._board.remove_piece(pos)
         self._arbiter.start_jump(piece)
+        self._rejection_reason = None
         return MoveResult(True, MoveResult.OK)
+
+    @property
+    def game_over(self) -> bool:
+        return self._game_over
 
     def advance_time(self, ms: int) -> None:
         """Advances the game clock. The arbiter tracks timing only; the resolver applies
         every due arrival/landing to the board."""
         if self._arbiter.advance_time(ms, self._resolver):
-            self.game_over = True
+            self._game_over = True
+
+    def set_cursor(self, x: int | None, y: int | None) -> None:
+        """Called by GameWindow each frame to track the mouse position for debug overlays."""
+        self._cursor_x = x
+        self._cursor_y = y
+
+    def set_rejection(self, reason: str | None) -> None:
+        """Called by Controller to set or clear the last rejection reason for display."""
+        self._rejection_reason = reason
 
     def set_selected(self, pos: Position | None) -> None:
         """Called by Controller to keep the snapshot in sync with the current selection."""
         self._selected = pos
+
+    def in_bounds(self, pos: Position) -> bool:
+        """Returns True if the position is within the board boundaries."""
+        return self._board.in_bounds(pos)
 
     def piece_at(self, pos: Position) -> bool:
         """Returns True if a piece exists at the given position. Used by Controller to check for empty cells."""
@@ -101,4 +127,9 @@ class GameEngine:
             self._resolver.move_log,
             self._arbiter.cooldown_progress_for,
             self._resolver.winner,
+            self._white_name,
+            self._black_name,
+            self._rejection_reason,
+            self._cursor_x,
+            self._cursor_y,
         )

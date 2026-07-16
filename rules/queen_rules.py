@@ -7,6 +7,10 @@ from rules.bishop_rules import BishopRules
 
 
 class QueenRules(PieceRules):
+    def __init__(self) -> None:
+        self._rook   = RookRules()
+        self._bishop = BishopRules()
+
     def legal_destinations(self, board: Board, piece: Piece) -> set[Position]:
         """Returns all squares reachable by combining rook and bishop movement."""
-        return RookRules().legal_destinations(board, piece) | BishopRules().legal_destinations(board, piece)
+        return self._rook.legal_destinations(board, piece) | self._bishop.legal_destinations(board, piece)

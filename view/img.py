@@ -66,18 +66,46 @@ class Img:
         h, w = self.img.shape[:2]
         H, W = other_img.img.shape[:2]
 
-        if y + h > H or x + w > W:
-            raise ValueError("Logo does not fit at the specified position.")
+        # clip to canvas bounds
+        x1, y1 = max(x, 0), max(y, 0)
+        x2, y2 = min(x + w, W), min(y + h, H)
+        if x2 <= x1 or y2 <= y1:
+            return  # fully outside canvas
 
-        roi = other_img.img[y:y + h, x:x + w]
+        sx, sy = x1 - x, y1 - y  # offset into self.img
+        sprite_crop = self.img[sy:sy + (y2 - y1), sx:sx + (x2 - x1)]
+        roi = other_img.img[y1:y2, x1:x2]
 
         if self.img.shape[2] == 4:
-            b, g, r, a = cv2.split(self.img)
+            b, g, r, a = cv2.split(sprite_crop)
             mask = a / 255.0
             for c in range(3):
-                roi[..., c] = (1 - mask) * roi[..., c] + mask * self.img[..., c]
+                roi[..., c] = (1 - mask) * roi[..., c] + mask * sprite_crop[..., c]
         else:
-            other_img.img[y:y + h, x:x + w] = self.img
+            other_img.img[y1:y2, x1:x2] = sprite_crop
+
+    def copy(self) -> "Img":
+        """Returns a new Img with an independent copy of the pixel buffer."""
+        result = Img()
+        result.img = self.img.copy()
+        return result
+
+    def width(self) -> int:
+        return self.img.shape[1]
+
+    def height(self) -> int:
+        return self.img.shape[0]
+
+    def channels(self) -> int:
+        return self.img.shape[2]
+
+    def paste(self, src: "Img", x: int, y: int, w: int) -> None:
+        """Copies src pixels directly into self at (x, y) — no alpha blending."""
+        self.img[y:y + src.height(), x:x + w] = src.img
+
+    def raw(self):
+        """Returns the raw numpy array — only for cv2.imshow plumbing in GameWindow."""
+        return self.img
 
     def draw_rect(self, x: int, y: int, w: int, h: int, color=(0, 255, 255, 255), thickness: int = 3) -> None:
         if self.img is None:
@@ -109,6 +137,17 @@ class Img:
         cv2.putText(self.img, txt, (x, y),
                     cv2.FONT_HERSHEY_SIMPLEX, font_size,
                     color, thickness, cv2.LINE_AA)
+
+    def draw_circle(self, cx: int, cy: int, radius: int,
+                    color=(0, 255, 255, 255), thickness: int = 2) -> None:
+        if self.img is None:
+            raise ValueError("Image not loaded.")
+        cv2.circle(self.img, (cx, cy), radius, color, thickness)
+
+    def save(self, path: str | pathlib.Path) -> None:
+        if self.img is None:
+            raise ValueError("Image not loaded.")
+        cv2.imwrite(str(path), self.img)
 
     def show(self):
         if self.img is None:

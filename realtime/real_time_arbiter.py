@@ -24,6 +24,11 @@ class RealTimeArbiter:
         self._jumps:     list[Jump]   = []
         self._cooldowns: dict[str, tuple[int, int]] = {}  # piece.id → (ready_time, total_ms)
 
+    @property
+    def current_time_ms(self) -> int:
+        """Returns the current game clock in milliseconds."""
+        return self._clock
+
     def cooldown_progress_for(self, piece: Piece) -> float:
         """Returns 1.0 (just started cooldown) down to 0.0 (ready). 0.0 if not on cooldown."""
         entry = self._cooldowns.get(piece.id)
@@ -147,6 +152,8 @@ class RealTimeArbiter:
                     victory = True
 
             for jump in due_jumps:
+                if jump.piece.state != PieceState.AIRBORNE:
+                    continue  # already settled by cancel_jump during motion resolution
                 if resolver.resolve_landing(jump):
                     victory = True
 
