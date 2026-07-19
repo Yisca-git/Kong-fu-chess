@@ -61,3 +61,34 @@ def test_non_friendly_result_clears_selection():
     ctrl.handle_click(0, 0)
     ctrl.handle_click(2 * CELL, 0)
     assert ctrl._selected is None
+
+
+def test_jump_out_of_bounds_does_not_call_engine():
+    ctrl, engine = make_controller()
+    engine.in_bounds.return_value = False
+    ctrl.handle_jump(9 * CELL, 9 * CELL)
+    engine.request_jump.assert_not_called()
+
+
+def test_jump_out_of_bounds_clears_selection():
+    ctrl, engine = make_controller(piece_at=True)
+    ctrl.handle_click(0, 0)              # select
+    ctrl.handle_jump(9 * CELL, 9 * CELL) # out of bounds
+    assert ctrl._selected is None
+
+
+def test_rejected_move_non_friendly_clears_selection():
+    ctrl, engine = make_controller(piece_at=True)
+    from engine.move_result import MoveResult
+    engine.request_move.return_value = MoveResult(False, MoveResult.PIECE_ON_COOLDOWN)
+    ctrl.handle_click(0, 0)
+    ctrl.handle_click(2 * CELL, 0)
+    engine.set_rejection.assert_called_with(MoveResult.PIECE_ON_COOLDOWN)
+    assert ctrl._selected is None
+
+
+def test_click_on_empty_cell_when_nothing_selected_does_nothing():
+    ctrl, engine = make_controller(piece_at=False)
+    ctrl.handle_click(3 * CELL, 3 * CELL)
+    engine.request_move.assert_not_called()
+    assert ctrl._selected is None

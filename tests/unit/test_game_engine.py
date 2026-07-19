@@ -2,6 +2,7 @@ from model.board import Board
 from model.piece import Piece, Color, Kind, PieceState
 from model.position import Position
 from realtime.real_time_arbiter import RealTimeArbiter
+from realtime.jump import Jump
 from rules.rule_engine import RuleEngine
 from rules.rules_registry import RULES_BY_KIND
 from engine.game_engine import GameEngine
@@ -160,3 +161,88 @@ def test_snapshot_custom_player_names():
     snapshot = engine.snapshot()
     assert snapshot.white_name == "Alice"
     assert snapshot.black_name == "Bob"
+
+
+# --- empty source ---
+
+def test_rejects_move_from_empty_source():
+    board, engine = setup([])
+    result = engine.request_move(Position(3, 3), Position(3, 4))
+    assert not result.is_accepted
+    assert result.reason == "empty_source"
+
+
+def test_rejects_jump_from_empty_source():
+    board, engine = setup([])
+    result = engine.request_jump(Position(3, 3))
+    assert not result.is_accepted
+    assert result.reason == "empty_source"
+
+
+# --- in_bounds ---
+
+def test_in_bounds_returns_true_for_valid_position():
+    board, engine = setup([])
+    assert engine.in_bounds(Position(0, 0))
+    assert engine.in_bounds(Position(7, 7))
+
+
+# --- set_cursor / set_rejection / set_selected do not raise ---
+
+def test_set_cursor_does_not_raise():
+    board, engine = setup([])
+    engine.set_cursor(100, 200)
+    engine.set_cursor(None, None)
+
+
+def test_set_rejection_does_not_raise():
+    board, engine = setup([])
+    engine.set_rejection("some_reason")
+    engine.set_rejection(None)
+
+
+def test_set_selected_does_not_raise():
+    board, engine = setup([])
+    engine.set_selected(Position(0, 0))
+    engine.set_selected(None)
+
+
+# --- pawn promotion via engine ---
+
+def test_pawn_promotion_via_arrival():
+    """A white pawn arriving at row 0 must be promoted to Queen."""
+    pawn = make_piece(1, 0, kind=Kind.PAWN)
+    board, engine = setup([pawn])
+    engine.request_move(Position(1, 0), Position(0, 0))
+    engine.advance_time(1000)
+    assert pawn.kind == Kind.QUEEN
+
+
+def test_pawn_promotion_awards_score():
+    """Promotion must add the promotion bonus to the promoting side's score."""
+    pawn = make_piece(1, 0, kind=Kind.PAWN)
+    board = Board(8, 8)
+    board.add_piece(pawn)
+    arbiter   = RealTimeArbiter()
+    sk        = ScoreKeeper()
+    resolver  = ArrivalResolver(board, RULES_BY_KIND, arbiter, sk)
+    engine    = GameEngine(board, RuleEngine(), arbiter, resolver, sk)
+    engine.request_move(Position(1, 0), Position(0, 0))
+    engine.advance_time(1000)
+    assert sk.score(Color.WHITE) == 9
+
+
+# --- resolve_landing on already-captured piece ---
+
+def test_resolve_landing_on_captured_piece_is_noop():
+    """If a jumping piece is captured before it lands, resolve_landing must be a no-op."""
+    from realtime.jump import Jump
+    from model.piece import PieceState
+    rook = make_piece(0, 0)
+    board = Board(8, 8)
+    arbiter  = RealTimeArbiter()
+    resolver = ArrivalResolver(board, RULES_BY_KIND, arbiter, ScoreKeeper())
+    rook.state = PieceState.CAPTURED
+    jump = Jump(rook, cell=Position(0, 0), start_time=0)
+    result = resolver.resolve_landing(jump)
+    assert result is False
