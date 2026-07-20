@@ -11,7 +11,8 @@ from engine.game_snapshot import GameSnapshot
 _COL_LETTERS = "abcdefgh"
 
 
-def encode_snapshot(snap: GameSnapshot) -> str:
+def encode_snapshot(snap: GameSnapshot, force_game_over: bool = False,
+                    winner: str | None = None) -> str:
     return json.dumps({
         "pieces": [
             {
@@ -23,12 +24,12 @@ def encode_snapshot(snap: GameSnapshot) -> str:
             }
             for p in snap.pieces
         ],
-        "game_over":   snap.game_over,
+        "game_over":   force_game_over or snap.game_over,
         "rows":        snap.rows,
         "cols":        snap.cols,
         "white_score": snap.white_score,
         "black_score": snap.black_score,
-        "winner":      snap.winner,
+        "winner":      winner or snap.winner,
         "white_name":  snap.white_name,
         "black_name":  snap.black_name,
         "move_log": [

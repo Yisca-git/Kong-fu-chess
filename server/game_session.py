@@ -54,6 +54,7 @@ class GameSession:
             if elapsed > 0:
                 self._engine.advance_time(elapsed)
             self._on_state(encode_snapshot(self._engine.snapshot()))
-        # game ended — fire on_game_over with winner
+        # send final snapshot with game_over=True so clients close their windows
+        self._on_state(encode_snapshot(self._engine.snapshot()))
         if self._on_game_over and self._engine.snapshot().winner:
             self._on_game_over(self._engine.snapshot().winner)

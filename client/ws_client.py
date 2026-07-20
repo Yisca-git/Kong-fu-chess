@@ -83,11 +83,13 @@ class NetworkClient:
         self._renderer   = Renderer(SpriteLibrary())
         self._snapshot:  GameSnapshot | None = None
         self._color:     str | None = None
+        self._game_id:   int | None = None
         self._selected:  tuple[int, int] | None = None
         self._ws         = None
         self._loop:      asyncio.AbstractEventLoop | None = None
-        self._matched    = threading.Event()   # set when assigned white/black
+        self._matched    = threading.Event()
         self._timed_out  = False
+        self._user_closed = False  # True when user closes window intentionally
 
     # ------------------------------------------------------------------ network
 
@@ -97,38 +99,65 @@ class NetworkClient:
 
     async def _run_ws(self) -> None:
         self._loop = asyncio.get_event_loop()
-        async with websockets.connect(SERVER_URI) as ws:
-            self._ws = ws
-            await ws.send(json.dumps({"auth": self._username}))
-            async for raw in ws:
-                data = json.loads(raw)
-                if "error" in data:
-                    print(f"[client] Server error: {data['error']}")
-                elif "assigned" in data:
-                    if data["assigned"] == "waiting":
-                        print(f"[client] In matchmaking queue... (ELO: {data.get('elo', '?')})")
-                    else:
-                        self._color = data["assigned"]
-                        opp = data.get('opponent', '?')
-                        opp_elo = data.get('opponent_elo', '?')
-                        print(f"[client] Matched! You are {self._color}  vs {opp} (ELO {opp_elo})")
+        if self._game_id is not None:
+            auth_msg = json.dumps({"auth": self._username, "rejoin": self._game_id})
+        else:
+            auth_msg = json.dumps({"auth": self._username})
+        try:
+            async with websockets.connect(SERVER_URI) as ws:
+                self._ws = ws
+                await ws.send(auth_msg)
+                async for raw in ws:
+                    if self._user_closed:
+                        break
+                    data = json.loads(raw)
+                    if "error" in data:
+                        print(f"[client] Server error: {data['error']}")
+                    elif "assigned" in data:
+                        if data["assigned"] == "waiting":
+                            print(f"[client] In matchmaking queue... (ELO: {data.get('elo', '?')})")
+                        else:
+                            self._color   = data["assigned"]
+                            self._game_id = data.get("game_id")
+                            if data.get("reconnected"):
+                                print(f"[client] Reconnected as {self._color}")
+                            else:
+                                opp     = data.get('opponent', '?')
+                                opp_elo = data.get('opponent_elo', '?')
+                                print(f"[client] Matched! You are {self._color}  vs {opp} (ELO {opp_elo})")
+                            self._matched.set()
+                    elif "matchmaking_timeout" in data:
+                        print("[client] Matchmaking timed out. No opponent found.")
+                        self._timed_out = True
                         self._matched.set()
-                elif "matchmaking_timeout" in data:
-                    print("[client] Matchmaking timed out. No opponent found.")
-                    self._timed_out = True
-                    self._matched.set()  # unblock run()
-                    break
-                elif "pieces" in data:
-                    self._snapshot = _parse_snapshot(data)
-                elif "elo_update" in data:
-                    new_elo = data["elo_update"].get(self._username)
-                    if new_elo is not None:
-                        print(f"[client] Your new ELO: {new_elo}")
+                        break
+                    elif "pieces" in data:
+                        self._snapshot = _parse_snapshot(data)
+                    elif "elo_update" in data:
+                        new_elo = data["elo_update"].get(self._username)
+                        if new_elo is not None:
+                            print(f"[client] Your new ELO: {new_elo}")
+                    elif "opponent_disconnected" in data:
+                        print("[client] Opponent disconnected — waiting for reconnect...")
+                    elif "opponent_forfeited" in data:
+                        print("[client] Opponent forfeited. You win!")
+        except Exception:
+            pass
 
     def _start_ws_thread(self) -> None:
         def _thread():
             asyncio.run(self._run_ws())
         threading.Thread(target=_thread, daemon=True).start()
+
+    def _reconnect(self) -> None:
+        """Tries to reconnect once after disconnection mid-game."""
+        print("[client] Connection lost — attempting reconnect...")
+        self._matched.clear()
+        self._timed_out = False
+        self._start_ws_thread()
+        self._matched.wait(timeout=15)
+        if self._timed_out or self._color is None:
+            print("[client] Reconnect failed.")
 
     # ------------------------------------------------------------------ input
 
@@ -191,13 +220,15 @@ class NetworkClient:
                 canvas = self._renderer.render(snap, now_ms)
                 cv2.imshow(WINDOW_NAME, canvas.raw())
                 if snap.game_over:
-                    cv2.waitKey(2000)  # 2 שניות להציג מסך סיום
+                    cv2.waitKey(2000)
                     break
 
             key = cv2.waitKey(TICK_MS) & 0xFF
             if key in (27, ord('q')):
+                self._user_closed = True
                 break
             if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
+                self._user_closed = True
                 break
 
         cv2.destroyAllWindows()
