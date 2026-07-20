@@ -86,6 +86,8 @@ class NetworkClient:
         self._selected:  tuple[int, int] | None = None
         self._ws         = None
         self._loop:      asyncio.AbstractEventLoop | None = None
+        self._matched    = threading.Event()   # set when assigned white/black
+        self._timed_out  = False
 
     # ------------------------------------------------------------------ network
 
@@ -103,16 +105,25 @@ class NetworkClient:
                 if "error" in data:
                     print(f"[client] Server error: {data['error']}")
                 elif "assigned" in data:
-                    self._color = data["assigned"]
-                    print(f"[client] Assigned as {self._color}  (ELO: {data.get('elo', '?')})")
+                    if data["assigned"] == "waiting":
+                        print(f"[client] In matchmaking queue... (ELO: {data.get('elo', '?')})")
+                    else:
+                        self._color = data["assigned"]
+                        opp = data.get('opponent', '?')
+                        opp_elo = data.get('opponent_elo', '?')
+                        print(f"[client] Matched! You are {self._color}  vs {opp} (ELO {opp_elo})")
+                        self._matched.set()
+                elif "matchmaking_timeout" in data:
+                    print("[client] Matchmaking timed out. No opponent found.")
+                    self._timed_out = True
+                    self._matched.set()  # unblock run()
+                    break
                 elif "pieces" in data:
                     self._snapshot = _parse_snapshot(data)
                 elif "elo_update" in data:
                     new_elo = data["elo_update"].get(self._username)
                     if new_elo is not None:
                         print(f"[client] Your new ELO: {new_elo}")
-                elif "rejection" in data:
-                    pass  # already shown via snapshot rejection_reason
 
     def _start_ws_thread(self) -> None:
         def _thread():
@@ -163,6 +174,12 @@ class NetworkClient:
 
     def run(self) -> None:
         self._start_ws_thread()
+
+        # wait for match before opening window
+        self._matched.wait(timeout=70)
+        if self._timed_out or self._color is None:
+            return
+
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
         cv2.setMouseCallback(WINDOW_NAME, self._on_mouse)
 
