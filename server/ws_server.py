@@ -13,7 +13,7 @@ from websockets.connection import State as WsState
 from model.position import Position
 from server.game_session import GameSession
 from server.protocol import decode_command, encode_snapshot
-from server.db import init_db, get_user, update_elo
+from server.db import init_db, get_user, update_elo, log_event, get_all_users
 from server.elo import updated_ratings
 from server.matchmaking import MatchmakingQueue
 from server.reconnect import ReconnectManager
@@ -26,17 +26,18 @@ TIMEOUT_POLL = 65
 class _Game:
     def __init__(self, game_id: int, session: GameSession,
                  usernames: dict[int, str]) -> None:
-        self.game_id   = game_id
-        self.session   = session
-        self.usernames = usernames
-        self.slots:    dict[int, ServerConnection] = {}
-        self.lock      = asyncio.Lock()
-        # fired when both slots have called set_slot (handlers ready)
+        self.game_id    = game_id
+        self.session    = session
+        self.usernames  = usernames
+        self.slots:     dict[int, ServerConnection] = {}
+        self.spectators: set[ServerConnection] = set()
+        self.lock       = asyncio.Lock()
         self._ready_count = 0
         self._ready_event = asyncio.Event()
 
     async def broadcast(self, payload: str) -> None:
-        for ws in list(self.slots.values()):
+        targets = list(self.slots.values()) + list(self.spectators)
+        for ws in targets:
             try:
                 await ws.send(payload)
             except Exception:
@@ -98,6 +99,7 @@ class ServerState:
             self._user_game[black_name] = (game_id, 1)
 
         print(f"[server] Game {game_id} created: {white_name} vs {black_name}")
+        log_event(game_id, "game_start", f"{white_name} vs {black_name}")
 
         wu = get_user(white_name)
         bu = get_user(black_name)
@@ -145,6 +147,7 @@ class ServerState:
         winner_slot = 1 - slot
         winner = "w" if winner_slot == 0 else "b"
         print(f"[server] Game {game_id}: slot {slot} forfeited")
+        log_event(game_id, "forfeit", f"slot={slot} forfeited")
         ws = game.slots.get(winner_slot)
         if ws:
             try:
@@ -161,6 +164,12 @@ class ServerState:
                 await ws.close()
             except Exception:
                 pass
+        for spec in list(game.spectators):
+            try:
+                await spec.send(snap)
+                await spec.close()
+            except Exception:
+                pass
         game.session.stop()
         await self.remove_game(game_id)
 
@@ -168,7 +177,7 @@ class ServerState:
         await self._settle_elo(game_id, winner)
         game = self._games.get(game_id)
         if game:
-            for ws in list(game.slots.values()):
+            for ws in list(game.slots.values()) + list(game.spectators):
                 try:
                     await ws.close()
                 except Exception:
@@ -194,14 +203,43 @@ class ServerState:
         update_elo(black_name, new_b)
         print(f"[server] ELO — {white_name}: {wu['elo']}→{new_w}  "
               f"{black_name}: {bu['elo']}→{new_b}")
+        log_event(game_id, "game_over", f"winner={winner} {white_name}:{new_w} {black_name}:{new_b}")
         await game.broadcast(json.dumps({
             "elo_update": {white_name: new_w, black_name: new_b}
         }))
+
+    def list_games(self) -> list[dict]:
+        return [
+            {"game_id": g.game_id,
+             "white": g.usernames.get(0, "?"),
+             "black": g.usernames.get(1, "?")}
+            for g in self._games.values()
+        ]
 
     async def _broadcast_game(self, game_id: int, payload: str) -> None:
         game = self._games.get(game_id)
         if game:
             await game.broadcast(payload)
+
+
+async def _watch_game(ws: ServerConnection, state: ServerState, game_id: int,
+                      username: str) -> None:
+    game = state.get_game(game_id)
+    if game is None:
+        await ws.send(json.dumps({"error": "Game not found."}))
+        await ws.close()
+        return
+    async with game.lock:
+        game.spectators.add(ws)
+    print(f"[server] {username} watching game {game_id}")
+    # send current snapshot immediately
+    await ws.send(encode_snapshot(game.session.engine.snapshot()))
+    try:
+        await ws.wait_closed()
+    finally:
+        async with game.lock:
+            game.spectators.discard(ws)
+        print(f"[server] {username} stopped watching game {game_id}")
 
 
 async def _play_game(ws: ServerConnection, state: ServerState,
@@ -279,6 +317,19 @@ async def _handle(ws: ServerConnection, state: ServerState) -> None:
     if not user:
         await ws.send(json.dumps({"error": "Unknown user. Please register first."}))
         await ws.close()
+        return
+
+    # list games path
+    if auth.get("list_games"):
+        games = state.list_games()
+        await ws.send(json.dumps({"games": games}))
+        await ws.close()
+        return
+
+    # watch path
+    watch_id = auth.get("watch")
+    if watch_id is not None:
+        await _watch_game(ws, state, watch_id, username)
         return
 
     # reconnect path

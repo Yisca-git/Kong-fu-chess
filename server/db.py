@@ -2,6 +2,7 @@
 
 Schema:
   users(id, username, password_hash, elo)
+  game_log(id, game_id, event, detail, ts)
 """
 from __future__ import annotations
 import sqlite3
@@ -26,6 +27,15 @@ def init_db() -> None:
                 elo           INTEGER NOT NULL DEFAULT 1200
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS game_log (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL,
+                event   TEXT    NOT NULL,
+                detail  TEXT    NOT NULL DEFAULT '',
+                ts      DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
 
 def get_user(username: str) -> sqlite3.Row | None:
@@ -48,3 +58,18 @@ def update_elo(username: str, new_elo: int) -> None:
         con.execute(
             "UPDATE users SET elo = ? WHERE username = ?", (new_elo, username)
         )
+
+
+def log_event(game_id: int, event: str, detail: str = "") -> None:
+    with _connect() as con:
+        con.execute(
+            "INSERT INTO game_log (game_id, event, detail) VALUES (?, ?, ?)",
+            (game_id, event, detail),
+        )
+
+
+def get_all_users() -> list[sqlite3.Row]:
+    with _connect() as con:
+        return con.execute(
+            "SELECT username, elo FROM users ORDER BY elo DESC"
+        ).fetchall()

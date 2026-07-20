@@ -236,3 +236,59 @@ class NetworkClient:
 
 if __name__ == "__main__":
     NetworkClient().run()
+
+
+class SpectatorClient:
+    """Read-only viewer: renders a live game without sending any commands."""
+
+    def __init__(self, username: str, game_id: int) -> None:
+        self._username  = username
+        self._game_id   = game_id
+        self._renderer  = Renderer(SpriteLibrary())
+        self._snapshot: GameSnapshot | None = None
+        self._ready     = threading.Event()
+        self._user_closed = False
+
+    async def _run_ws(self) -> None:
+        auth_msg = json.dumps({"auth": self._username, "watch": self._game_id})
+        try:
+            async with websockets.connect(SERVER_URI) as ws:
+                await ws.send(auth_msg)
+                async for raw in ws:
+                    if self._user_closed:
+                        break
+                    data = json.loads(raw)
+                    if "error" in data:
+                        print(f"[spectator] {data['error']}")
+                        break
+                    elif "pieces" in data:
+                        self._snapshot = _parse_snapshot(data)
+                        self._ready.set()
+        except Exception:
+            pass
+
+    def run(self) -> None:
+        threading.Thread(target=lambda: asyncio.run(self._run_ws()), daemon=True).start()
+        if not self._ready.wait(timeout=10):
+            print("[spectator] Could not connect to game.")
+            return
+
+        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
+        start_ms = time.monotonic() * 1000
+        while True:
+            now_ms = int(time.monotonic() * 1000 - start_ms)
+            snap   = self._snapshot
+            if snap is not None:
+                canvas = self._renderer.render(snap, now_ms)
+                cv2.imshow(WINDOW_NAME, canvas.raw())
+                if snap.game_over:
+                    cv2.waitKey(2000)
+                    break
+            key = cv2.waitKey(TICK_MS) & 0xFF
+            if key in (27, ord('q')):
+                self._user_closed = True
+                break
+            if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
+                self._user_closed = True
+                break
+        cv2.destroyAllWindows()
