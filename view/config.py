@@ -5,6 +5,7 @@ never redefine them in individual files.
 """
 
 PANEL_W      = 200   # width in pixels of each side panel (left=White, right=Black)
+CELL_SIZE    = 100   # pixels per board square — the single source of truth for UI sizing
 TICK_MS      = 16    # main loop tick (~60 FPS)
 LOG_FONT     = 0.4
 LOG_COLOR    = (220, 220, 220)

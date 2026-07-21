@@ -5,7 +5,7 @@ from engine.game_snapshot import GameSnapshot, PieceSnapshot
 from engine.move_log import MoveEntry
 from view.renderer import Renderer
 from view.sprites.sprite_library import SpriteLibrary
-from input.board_mapper import CELL_SIZE
+from view.config import CELL_SIZE
 
 
 def make_piece(row, col, kind=Kind.ROOK, color=Color.WHITE):
@@ -19,7 +19,7 @@ def test_render_returns_canvas_sized_to_board():
 
     canvas = renderer.render(snapshot, now_ms=0)
 
-    from view.renderer import PANEL_W
+    from view.config import CELL_SIZE, PANEL_W
     h, w = canvas.img.shape[:2]
     assert (w, h) == (8 * CELL_SIZE + 2 * PANEL_W, 8 * CELL_SIZE)
 

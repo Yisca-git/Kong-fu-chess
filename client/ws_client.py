@@ -24,7 +24,8 @@ from engine.game_snapshot import GameSnapshot, PieceSnapshot
 from engine.move_log import MoveEntry
 from view.sprites.sprite_library import SpriteLibrary
 from view.renderer import Renderer
-from view.config import PANEL_W, TICK_MS, WINDOW_NAME
+from view.config import PANEL_W, TICK_MS, WINDOW_NAME, CELL_SIZE
+from view.events.observers.sound_observer import SoundObserver
 
 SERVER_URI = "ws://localhost:8765"
 
@@ -80,8 +81,11 @@ class NetworkClient:
 
     def __init__(self, username: str = "guest") -> None:
         self._username   = username
-        self._renderer   = Renderer(SpriteLibrary())
+        self._cell_size  = CELL_SIZE
+        self._renderer   = Renderer(SpriteLibrary(cell_size=self._cell_size))
         self._snapshot:  GameSnapshot | None = None
+        self._prev_log_len: int = 0
+        self._prev_piece_ids: set[str] = set()
         self._color:     str | None = None
         self._game_id:   int | None = None
         self._selected:  tuple[int, int] | None = None
@@ -89,7 +93,29 @@ class NetworkClient:
         self._loop:      asyncio.AbstractEventLoop | None = None
         self._matched    = threading.Event()
         self._timed_out  = False
-        self._user_closed = False  # True when user closes window intentionally
+        self._user_closed = False
+        self._sound_obs  = SoundObserver()
+
+    # ------------------------------------------------------------------ sound
+
+    def _tick_sounds(self, snap: GameSnapshot) -> None:
+        """Plays sounds based on changes since the last snapshot."""
+        new_log_len = len(snap.move_log)
+        if new_log_len > self._prev_log_len:
+            cur_ids  = {p.id for p in snap.pieces}
+            captured = self._prev_piece_ids - cur_ids
+            if captured:
+                self._sound_obs._play_sound("capture.wav")
+            else:
+                # check if any piece just started moving vs was airborne
+                new_airborne = {p.id for p in snap.pieces if p.state == "airborne"}
+                prev_airborne = {p.id for p in (self._snapshot.pieces if self._snapshot else []) if p.state == "airborne"}
+                if new_airborne - prev_airborne:
+                    self._sound_obs._play_sound("jump.wav")
+                else:
+                    self._sound_obs._play_sound("move.wav")
+        self._prev_log_len   = new_log_len
+        self._prev_piece_ids = {p.id for p in snap.pieces}
 
     # ------------------------------------------------------------------ network
 
@@ -175,8 +201,8 @@ class NetworkClient:
         if board_x < 0 or self._snapshot is None or self._color is None:
             return
         try:
-            pos = pixel_to_position(board_x, y)
-        except ValueError:
+            pos = pixel_to_position(board_x, y, self._cell_size)
+        except (ValueError, ZeroDivisionError):
             return
         if not (0 <= pos.row < self._snapshot.rows and 0 <= pos.col < self._snapshot.cols):
             return
@@ -217,6 +243,7 @@ class NetworkClient:
             now_ms = int(time.monotonic() * 1000 - start_ms)
             snap   = self._snapshot
             if snap is not None:
+                self._tick_sounds(snap)
                 canvas = self._renderer.render(snap, now_ms)
                 cv2.imshow(WINDOW_NAME, canvas.raw())
                 if snap.game_over:

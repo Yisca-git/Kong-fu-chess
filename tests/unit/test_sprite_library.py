@@ -1,7 +1,7 @@
 import pytest
 from model.piece import Kind, Color
 from view.sprites.sprite_library import SpriteLibrary
-from input.board_mapper import CELL_SIZE
+from view.config import CELL_SIZE
 
 
 @pytest.fixture

@@ -26,6 +26,9 @@ class BoardView:
         self._pieces  = piece_renderer
         self._overlay = overlay_renderer
 
+    @property
+    def board_renderer(self) -> IBoardRenderer:
+        return self._board
     def render(self, snapshot: GameSnapshot, dt_ms: int) -> Img:
         frame = self._board.fresh_frame(snapshot.rows, snapshot.cols)
         self._overlay.draw_selection(frame, snapshot)

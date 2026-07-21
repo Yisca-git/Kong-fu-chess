@@ -9,6 +9,9 @@ class BoardRenderer:
     def __init__(self, library: SpriteLibrary) -> None:
         self._library = library
 
+    def set_cell_size(self, cell_size: int) -> None:
+        self._library.set_cell_size(cell_size)
+
     def fresh_frame(self, rows: int, cols: int) -> Img:
         board  = self._library.board_image(rows, cols)
         return board.copy()

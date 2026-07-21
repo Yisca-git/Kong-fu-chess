@@ -3,9 +3,9 @@ from pathlib import Path
 from model.piece import Kind, Color
 from view.img import Img
 from view.sprites.sprite_state import SpriteState, StateConfig
-from input.board_mapper import CELL_SIZE
+from view.config import CELL_SIZE
+from paths import ASSETS_ROOT
 
-ASSETS_ROOT  = Path(__file__).resolve().parent.parent.parent / "assets2"
 PIECES_ROOT  = ASSETS_ROOT / "pieces_mine"
 BOARD_PATH   = ASSETS_ROOT / "board.png"
 
@@ -41,6 +41,17 @@ class SpriteLibrary:
         self._cell_size  = cell_size
         self._asset_cache: dict[_AssetKey, tuple[StateConfig, list[Img]]] = {}
         self._board_cache: dict[tuple[int, int], Img] = {}
+
+    @property
+    def cell_size(self) -> int:
+        return self._cell_size
+
+    def set_cell_size(self, cell_size: int) -> None:
+        """Invalidates caches and sets a new cell size for resize support."""
+        if cell_size != self._cell_size:
+            self._cell_size = cell_size
+            self._asset_cache.clear()
+            self._board_cache.clear()
 
     def get_state(self, color: str, kind: str, engine_state: str) -> SpriteState:
         """Returns a new SpriteState (fresh clock) backed by cached frames."""

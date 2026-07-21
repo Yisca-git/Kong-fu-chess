@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from view.img import Img
 from view.config import PANEL_W, LOG_FONT, LOG_COLOR, HEADER_COLOR, MAX_LOG_ENTRIES
-from input.board_mapper import CELL_SIZE
 from model.piece import Color
 
 if TYPE_CHECKING:
@@ -25,12 +24,19 @@ class OverlayRenderer:
     """Draws everything that isn't the board background or a piece sprite:
     selection highlight, side panels (moves log + score), and game-over banner."""
 
+    def __init__(self, cell_size: int = 100) -> None:
+        self._cell_size = cell_size
+
+    def set_cell_size(self, cell_size: int) -> None:
+        self._cell_size = cell_size
+
     def draw_selection(self, frame: Img, snapshot: GameSnapshot) -> None:
         if snapshot.selected_row is not None:
+            cell = self._cell_size
             frame.draw_rect(
-                snapshot.selected_col * CELL_SIZE,
-                snapshot.selected_row * CELL_SIZE,
-                CELL_SIZE, CELL_SIZE,
+                snapshot.selected_col * cell,
+                snapshot.selected_row * cell,
+                cell, cell,
             )
 
     def compose_panels(self, board_canvas: Img, snapshot: GameSnapshot) -> Img:

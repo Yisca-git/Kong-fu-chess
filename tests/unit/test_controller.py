@@ -9,7 +9,7 @@ CELL = 100
 def make_controller(piece_at=False):
     engine = MagicMock()
     engine.piece_at.return_value = piece_at
-    return Controller(engine, 8, 8), engine
+    return Controller(engine, 8, 8, cell_size=CELL), engine
 
 
 def test_click_out_of_bounds_clears_selection():

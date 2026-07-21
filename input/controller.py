@@ -6,16 +6,20 @@ from input.board_mapper import pixel_to_position
 
 
 class Controller:
-    def __init__(self, engine: GameEngine, board_rows: int, board_cols: int):
+    def __init__(self, engine: GameEngine, board_rows: int, board_cols: int,
+                 cell_size: int):
         self._engine    = engine
+        self._cell_size = cell_size
         self._selected: Position | None = None
+
+    def set_cell_size(self, cell_size: int) -> None:
+        self._cell_size = cell_size
 
     def _in_bounds(self, pos: Position) -> bool:
         return self._engine.in_bounds(pos)
 
     def handle_jump(self, x: int, y: int) -> None:
-        """Handles a pixel-space right-click: issues a jump command and clears selection."""
-        pos = pixel_to_position(x, y)
+        pos = pixel_to_position(x, y, self._cell_size)
         if self._in_bounds(pos):
             result = self._engine.request_jump(pos)
             if not result.is_accepted:
@@ -24,8 +28,7 @@ class Controller:
         self._engine.set_selected(None)
 
     def handle_click(self, x: int, y: int) -> None:
-        """Handles a pixel-space click: selects a piece or issues a move command."""
-        pos = pixel_to_position(x, y)
+        pos = pixel_to_position(x, y, self._cell_size)
 
         if not self._in_bounds(pos):
             self._selected = None

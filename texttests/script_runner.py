@@ -23,7 +23,7 @@ def run_script(text: str) -> list[tuple[list[str], list[str]]]:
     arbiter       = RealTimeArbiter()
     resolver      = ArrivalResolver(board, RULES_BY_KIND, arbiter, ScoreKeeper())
     engine        = GameEngine(board, rule_engine, arbiter, resolver, ScoreKeeper())
-    controller    = Controller(engine, board.rows, board.cols)
+    controller    = Controller(engine, board.rows, board.cols, cell_size=100)
 
     results: list[tuple[list[str], list[str]]] = []
 
