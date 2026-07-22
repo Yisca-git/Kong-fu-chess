@@ -51,7 +51,7 @@ class PlayerSession(RenderLoop):
         board_x = x - PANEL_W
         if board_x < 0 or self._snapshot is None or self._net.color is None:
             return
-        if self._net._countdown is not None:
+        if self._net.opponent_countdown is not None:
             return
         try:
             pos = pixel_to_position(board_x, y, self._cell_size)
@@ -123,11 +123,11 @@ class PlayerSession(RenderLoop):
     def _on_window_closed(self) -> None:
         if not self._user_closed:
             return
-        if self._net.color is not None and self._loop_ended_by_game_over:
+        if self._snapshot and self._snapshot.game_over:
             return
         try:
             self._net.send_disconnect()
-        except Exception:
+        except RuntimeError:
             pass
 
     # ------------------------------------------------------------------ run

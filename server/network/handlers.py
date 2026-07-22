@@ -131,6 +131,24 @@ async def _watch_game(ws: ServerConnection, state: ServerState,
         print(f"[server] {username} stopped watching game {game_id}")
 
 
+async def _handle_disconnect(ws: ServerConnection, state: ServerState,
+                              game_id: int, slot: int) -> None:
+    """Called when a player voluntarily closes their game window."""
+    game = state.get_game(game_id)
+    if game is None:
+        return
+    print(f"[server] slot {slot} voluntarily disconnected from game {game_id}")
+    await game.clear_slot(slot)
+    if not state.reconnect.has_timer(game_id, slot):
+        state.reconnect.start_timer(game_id, slot)
+        opp_ws = game.slots.get(1 - slot)
+        if opp_ws:
+            try:
+                await opp_ws.send(json.dumps({"opponent_disconnected": True}))
+            except OSError:
+                pass
+
+
 async def _play_game(ws: ServerConnection, state: ServerState,
                      game_id: int, slot: int) -> None:
     game = state.get_game(game_id)
@@ -157,16 +175,7 @@ async def _play_game(ws: ServerConnection, state: ServerState,
             try:
                 data = json.loads(message) if message.startswith('{') else None
                 if data and data.get("disconnect"):
-                    print(f"[server] slot {slot} voluntarily disconnected from game {game_id}")
-                    await game.clear_slot(slot)
-                    if not state.reconnect.has_timer(game_id, slot):
-                        state.reconnect.start_timer(game_id, slot)
-                        opp_ws = game.slots.get(1 - slot)
-                        if opp_ws:
-                            try:
-                                await opp_ws.send(json.dumps({"opponent_disconnected": True}))
-                            except OSError:
-                                pass
+                    await _handle_disconnect(ws, state, game_id, slot)
                     break
                 if state.reconnect.has_timer(game_id, 1 - slot):
                     continue  # opponent disconnected — ignore moves until resolved

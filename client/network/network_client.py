@@ -53,6 +53,10 @@ class NetworkClient:
             MSG_COUNTDOWN:             self._on_countdown,
         }
 
+    @property
+    def opponent_countdown(self) -> int | None:
+        return self._countdown
+
     def send_move(self, color: str, kind: str,
                   sr: int, sc: int, dr: int, dc: int) -> None:
         self._send(encode_move(color, kind, sr, sc, dr, dc))

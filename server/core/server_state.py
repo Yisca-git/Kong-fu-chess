@@ -149,6 +149,11 @@ class ServerState:
         snap = game.session.engine.snapshot()
         await game.broadcast(encode_snapshot(snap, force_game_over=True, winner=winner))
         game.session.stop()
+        for spec_ws in list(game.spectators):
+            try:
+                await spec_ws.close()
+            except OSError:
+                pass
         if ws:
             try:
                 await ws.close()

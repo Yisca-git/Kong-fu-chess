@@ -17,7 +17,6 @@ class RenderLoop:
         self._renderer    = Renderer(SpriteLibrary(cell_size=CELL_SIZE))
         self._snapshot:   GameSnapshot | None = None
         self._user_closed = False
-        self._loop_ended_by_game_over = False
         self._window_name = window_name
 
     def _ready_event(self) -> threading.Event:
@@ -47,7 +46,6 @@ class RenderLoop:
                 canvas = self._renderer.render(snap, now_ms)
                 cv2.imshow(self._window_name, canvas.raw())
                 if snap.game_over:
-                    self._loop_ended_by_game_over = True
                     cv2.waitKey(2000)
                     break
             key = cv2.waitKey(TICK_MS) & 0xFF
