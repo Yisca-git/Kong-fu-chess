@@ -28,11 +28,11 @@ def _play(filename: str) -> None:
 
 
 class SoundObserver:
-    def _play_sound(self, filename: str) -> None:
+    def play_sound(self, filename: str) -> None:
         _executor.submit(_play, filename)
 
     def on_move_resolved(self, event: MoveResolvedEvent) -> None:
-        self._play_sound("capture.wav" if event.captured_piece_kind else "move.wav")
+        self.play_sound("capture.wav" if event.captured_piece_kind else "move.wav")
 
     def on_jump_resolved(self, event: JumpResolvedEvent) -> None:
-        self._play_sound("capture.wav" if event.captured_piece_kind else "jump.wav")
+        self.play_sound("capture.wav" if event.captured_piece_kind else "jump.wav")

@@ -69,6 +69,15 @@ class OverlayRenderer:
         canvas.draw_rect_filled(cx - 110, h // 2 - 22, 220, 34, color=(30, 30, 30), alpha=0.75)
         canvas.put_text(label, cx - 105, h // 2, 0.65, (0, 80, 255), thickness=2)
 
+    def draw_countdown(self, canvas: Img, snapshot: GameSnapshot) -> None:
+        if snapshot.countdown_seconds is None:
+            return
+        h, w = canvas.height(), canvas.width()
+        cx   = PANEL_W + (w - 2 * PANEL_W) // 2
+        canvas.draw_rect_filled(cx - 160, h // 4 - 28, 320, 44, color=(20, 20, 20), alpha=0.8)
+        canvas.put_text(f"Opponent disconnected: {snapshot.countdown_seconds}s",
+                        cx - 155, h // 4, 0.65, (0, 165, 255), thickness=2)
+
     # ------------------------------------------------------------------ private
 
     def _draw_log_panel(self, canvas: Img, entries: list, x_offset: int,

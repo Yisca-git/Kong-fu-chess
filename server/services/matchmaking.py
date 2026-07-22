@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Awaitable
 
-from websockets.server import WebSocketServerProtocol
+from websockets import ServerConnection
 
 ELO_DELTA  = 100
 TIMEOUT_S  = 60
@@ -25,12 +25,12 @@ SCAN_S     = 1.0
 class _Entry:
     username:  str
     elo:       int
-    ws:        WebSocketServerProtocol
+    ws:        ServerConnection
     joined_at: float = field(default_factory=time.monotonic)
 
 
 OnMatch = Callable[
-    [str, WebSocketServerProtocol, str, WebSocketServerProtocol],
+    [str, ServerConnection, str, ServerConnection],
     Awaitable[None],
 ]
 
@@ -42,13 +42,13 @@ class MatchmakingQueue:
         self._task:     asyncio.Task | None = None
 
     def start(self) -> None:
-        self._task = asyncio.get_event_loop().create_task(self._scan_loop())
+        self._task = asyncio.get_running_loop().create_task(self._scan_loop())
 
     def stop(self) -> None:
         if self._task:
             self._task.cancel()
 
-    def enqueue(self, username: str, elo: int, ws: WebSocketServerProtocol) -> None:
+    def enqueue(self, username: str, elo: int, ws: ServerConnection) -> None:
         # prevent duplicate entries
         self._queue = [e for e in self._queue if e.username != username]
         self._queue.append(_Entry(username, elo, ws))
@@ -71,7 +71,7 @@ class MatchmakingQueue:
             print(f"[matchmaking] {e.username} timed out")
             try:
                 await e.ws.send('{"matchmaking_timeout": true}')
-            except Exception:
+            except OSError:
                 pass
 
     async def _try_match(self) -> None:

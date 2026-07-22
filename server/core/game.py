@@ -16,6 +16,7 @@ class Game:
         self.lock        = asyncio.Lock()
         self._ready_count = 0
         self._ready_event = asyncio.Event()
+        self.forfeited:  bool = False
 
     async def broadcast(self, payload: str) -> None:
         for ws in list(self.slots.values()) + list(self.spectators):
@@ -23,6 +24,8 @@ class Game:
                 await ws.send(payload)
             except Exception:
                 pass
+
+    broadcast_raw = broadcast
 
     async def set_slot(self, slot: int, ws: ServerConnection) -> None:
         async with self.lock:

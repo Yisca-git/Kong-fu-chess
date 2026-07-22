@@ -1,12 +1,14 @@
 """Encode/decode wire messages between client and server."""
 from __future__ import annotations
 from engine.game_snapshot import GameSnapshot, PieceSnapshot
-from engine.move_log import MoveEntry
+from engine.move_log import MoveEntry, COL_LETTERS
+from engine.setup import BOARD_ROWS
 
-_COL_LETTERS = "abcdefgh"
+_COL_LETTERS = COL_LETTERS.lower()
 
 
-def parse_snapshot(data: dict) -> GameSnapshot:
+def parse_snapshot(data: dict, countdown_seconds: int | None = None) -> GameSnapshot:
+    
     pieces = tuple(
         PieceSnapshot(
             id=p["id"], color=p["color"], kind=p["kind"],
@@ -33,15 +35,16 @@ def parse_snapshot(data: dict) -> GameSnapshot:
         black_name=data.get("black_name", "Black"),
         move_log=move_log,
         rejection_reason=data.get("rejection_reason"),
+        countdown_seconds=countdown_seconds,
     )
 
 
 def encode_move(color: str, kind: str, src_row: int, src_col: int,
                 dst_row: int, dst_col: int) -> str:
-    c  = "W" if color == "w" else "B"
-    return f"{c}{kind}{_COL_LETTERS[src_col]}{8 - src_row}{_COL_LETTERS[dst_col]}{8 - dst_row}"
+    c = "W" if color == "w" else "B"
+    return f"{c}{kind}{_COL_LETTERS[src_col]}{BOARD_ROWS - src_row}{_COL_LETTERS[dst_col]}{BOARD_ROWS - dst_row}"
 
 
 def encode_jump(color: str, kind: str, row: int, col: int) -> str:
     c = "W" if color == "w" else "B"
-    return f"{c}{kind}{_COL_LETTERS[col]}{8 - row}"
+    return f"{c}{kind}{_COL_LETTERS[col]}{BOARD_ROWS - row}"

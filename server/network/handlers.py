@@ -7,7 +7,8 @@ from websockets.connection import State as WsState
 
 from model.position import Position
 from server.network.protocol import decode_command, encode_snapshot
-from server.db.db import get_user
+from server.db.db import get_user, get_all_users
+from server.services.auth import register, login
 from server.core.server_state import ServerState
 
 TIMEOUT_POLL = 65
@@ -17,8 +18,26 @@ async def handle(ws: ServerConnection, state: ServerState) -> None:
     try:
         raw  = await asyncio.wait_for(ws.recv(), timeout=10)
         auth = json.loads(raw)
-    except Exception:
+    except (asyncio.TimeoutError, json.JSONDecodeError):
         await ws.close(1008, "Auth timeout")
+        return
+
+    if auth.get("register"):
+        ok, msg = register(auth.get("username", ""), auth.get("password", ""))
+        await ws.send(json.dumps({"ok": ok, "msg": msg}))
+        await ws.close()
+        return
+
+    if auth.get("login"):
+        ok, msg = login(auth.get("username", ""), auth.get("password", ""))
+        await ws.send(json.dumps({"ok": ok, "msg": msg}))
+        await ws.close()
+        return
+
+    if auth.get("leaderboard"):
+        rows = [{"username": r["username"], "elo": r["elo"]} for r in get_all_users()]
+        await ws.send(json.dumps({"leaderboard": rows}))
+        await ws.close()
         return
 
     username = auth.get("auth", "")
@@ -120,11 +139,10 @@ async def _play_game(ws: ServerConnection, state: ServerState,
 
     state.reconnect.cancel_timer(game_id, slot)
     await game.set_slot(slot, ws)
-    async with state._lock:
-        state._ws_game[ws] = (game_id, slot)
+    await state._register_ws_game(ws, game_id, slot)
 
     if await game.wait_ready():
-        if not game.session._task:
+        if not game.session.is_running():
             game.session.start()
             print(f"[server] Game {game_id} started")
             await game.broadcast(encode_snapshot(game.session.engine.snapshot()))
@@ -137,6 +155,21 @@ async def _play_game(ws: ServerConnection, state: ServerState,
             if game is None:
                 break
             try:
+                data = json.loads(message) if message.startswith('{') else None
+                if data and data.get("disconnect"):
+                    print(f"[server] slot {slot} voluntarily disconnected from game {game_id}")
+                    await game.clear_slot(slot)
+                    if not state.reconnect.has_timer(game_id, slot):
+                        state.reconnect.start_timer(game_id, slot)
+                        opp_ws = game.slots.get(1 - slot)
+                        if opp_ws:
+                            try:
+                                await opp_ws.send(json.dumps({"opponent_disconnected": True}))
+                            except OSError:
+                                pass
+                    break
+                if state.reconnect.has_timer(game_id, 1 - slot):
+                    continue  # opponent disconnected — ignore moves until resolved
                 _color, src, dst = decode_command(message)
                 src_pos = Position(*src)
                 if dst is None:
@@ -147,26 +180,25 @@ async def _play_game(ws: ServerConnection, state: ServerState,
                     await ws.send(json.dumps({"rejection": result.reason}))
             except Exception as e:
                 await ws.send(json.dumps({"error": str(e)}))
+    except Exception:
+        pass  # connection dropped (ping timeout, network error, etc.)
     finally:
         print(f"[server] slot {slot} disconnected from game {game_id}")
-        state._ws_game.pop(ws, None)
+        state.deregister_ws_game(ws)
         game = state.get_game(game_id)
+        print(f"[server] finally: game={game}, forfeited={game.forfeited if game else 'N/A'}, game_over={game.session.engine.game_over if game else 'N/A'}")
         if game:
             await game.clear_slot(slot)
-            if game.session.engine.game_over:
-                opp_ws = game.slots.get(1 - slot)
-                if opp_ws:
-                    try:
-                        await opp_ws.close()
-                    except Exception:
-                        pass
+            if game.session.engine.game_over or game.forfeited:
+                print(f"[server] finally: cleaning up game {game_id}")
                 game.session.stop()
                 await state.remove_game(game_id)
-            else:
+            elif not state.reconnect.has_timer(game_id, slot):
+                print(f"[server] finally: starting reconnect timer for slot {slot}")
                 state.reconnect.start_timer(game_id, slot)
                 opp_ws = game.slots.get(1 - slot)
                 if opp_ws:
                     try:
                         await opp_ws.send(json.dumps({"opponent_disconnected": True}))
-                    except Exception:
+                    except OSError:
                         pass

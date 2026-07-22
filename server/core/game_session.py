@@ -8,10 +8,10 @@ from rules.rule_engine import RuleEngine
 from rules.rules_registry import RULES_BY_KIND
 from realtime.real_time_arbiter import RealTimeArbiter
 from engine.game_engine import GameEngine
+from engine.game_snapshot import GameSnapshot
 from engine.arrival_resolver import ArrivalResolver
 from engine.score_keeper import ScoreKeeper
 from engine.setup import build_starting_board
-from server.network.protocol import encode_snapshot
 
 TICK_MS = 33  # ~30 fps game-loop tick
 
@@ -19,7 +19,7 @@ TICK_MS = 33  # ~30 fps game-loop tick
 class GameSession:
     """Runs the game clock and notifies a broadcast callback each tick."""
 
-    def __init__(self, on_state: Callable[[str], None],
+    def __init__(self, on_state: Callable[[GameSnapshot], None],
                  on_game_over: Callable[[str], None] | None = None,
                  white_name: str = "Player 1", black_name: str = "Player 2"):
         self._on_state     = on_state
@@ -38,11 +38,14 @@ class GameSession:
         return self._engine
 
     def start(self) -> None:
-        self._task = asyncio.get_event_loop().create_task(self._loop())
+        self._task = asyncio.get_running_loop().create_task(self._loop())
 
     def stop(self) -> None:
         if self._task:
             self._task.cancel()
+
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
 
     async def _loop(self) -> None:
         last = time.monotonic()
@@ -53,8 +56,7 @@ class GameSession:
             last    = now
             if elapsed > 0:
                 self._engine.advance_time(elapsed)
-            self._on_state(encode_snapshot(self._engine.snapshot()))
-        # send final snapshot with game_over=True so clients close their windows
-        self._on_state(encode_snapshot(self._engine.snapshot()))
+            self._on_state(self._engine.snapshot())
+        self._on_state(self._engine.snapshot())
         if self._on_game_over and self._engine.snapshot().winner:
             self._on_game_over(self._engine.snapshot().winner)

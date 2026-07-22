@@ -37,4 +37,5 @@ class BoardView:
         if snapshot.game_over:
             self._overlay.draw_game_over(full, snapshot)
         self._overlay.draw_rejection(full, snapshot)
+        self._overlay.draw_countdown(full, snapshot)
         return full

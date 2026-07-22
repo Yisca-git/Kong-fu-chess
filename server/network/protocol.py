@@ -7,8 +7,10 @@ Command format:
 from __future__ import annotations
 import json
 from engine.game_snapshot import GameSnapshot
+from engine.move_log import COL_LETTERS
+from engine.setup import BOARD_ROWS
 
-_COL_LETTERS = "abcdefgh"
+_COL_LETTERS = COL_LETTERS.lower()
 
 
 def encode_snapshot(snap: GameSnapshot, force_game_over: bool = False,
@@ -45,7 +47,7 @@ def _col(letter: str) -> int:
 
 
 def _row(digit: str) -> int:
-    return 8 - int(digit)
+    return BOARD_ROWS - int(digit)
 
 
 def decode_command(cmd: str) -> tuple[str, tuple[int, int], tuple[int, int] | None]:

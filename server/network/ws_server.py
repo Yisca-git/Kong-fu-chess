@@ -18,7 +18,9 @@ async def main() -> None:
     state.queue = MatchmakingQueue(on_match=state.create_game)
     state.queue.start()
     print(f"[server] Listening on ws://{HOST}:{PORT}")
-    async with websockets.serve(lambda ws: handle(ws, state), HOST, PORT):
+    async with websockets.serve(lambda ws: handle(ws, state), HOST, PORT,
+                                  ping_interval=20, ping_timeout=10,
+                                  close_timeout=5):
         await asyncio.Future()
 
 

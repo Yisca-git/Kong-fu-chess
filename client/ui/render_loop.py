@@ -13,10 +13,12 @@ from view.config import TICK_MS, WINDOW_NAME, CELL_SIZE
 class RenderLoop:
     """Base render loop: opens a cv2 window and renders snapshots until game over or quit."""
 
-    def __init__(self) -> None:
+    def __init__(self, window_name: str = WINDOW_NAME) -> None:
         self._renderer    = Renderer(SpriteLibrary(cell_size=CELL_SIZE))
         self._snapshot:   GameSnapshot | None = None
         self._user_closed = False
+        self._loop_ended_by_game_over = False
+        self._window_name = window_name
 
     def _ready_event(self) -> threading.Event:
         raise NotImplementedError
@@ -34,8 +36,8 @@ class RenderLoop:
         return self._ready_event().wait(timeout=timeout)
 
     def _run_loop(self) -> None:
-        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
-        cv2.setMouseCallback(WINDOW_NAME, self._on_mouse)
+        cv2.namedWindow(self._window_name, cv2.WINDOW_AUTOSIZE)
+        cv2.setMouseCallback(self._window_name, self._on_mouse)
         start_ms = time.monotonic() * 1000
         while True:
             now_ms = int(time.monotonic() * 1000 - start_ms)
@@ -43,15 +45,20 @@ class RenderLoop:
             if snap is not None:
                 self._on_tick(snap)
                 canvas = self._renderer.render(snap, now_ms)
-                cv2.imshow(WINDOW_NAME, canvas.raw())
+                cv2.imshow(self._window_name, canvas.raw())
                 if snap.game_over:
+                    self._loop_ended_by_game_over = True
                     cv2.waitKey(2000)
                     break
             key = cv2.waitKey(TICK_MS) & 0xFF
             if key in (27, ord('q')):
                 self._user_closed = True
                 break
-            if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
+            if cv2.getWindowProperty(self._window_name, cv2.WND_PROP_VISIBLE) < 1:
                 self._user_closed = True
                 break
         cv2.destroyAllWindows()
+        self._on_window_closed()
+
+    def _on_window_closed(self) -> None:
+        pass  # override in subclasses

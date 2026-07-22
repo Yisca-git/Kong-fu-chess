@@ -34,6 +34,7 @@ class GameSnapshot:
     rejection_reason: str | None = None  # set for one frame when a move/jump is rejected
     cursor_x: int | None = None  # raw canvas pixel x (board area only, None if outside)
     cursor_y: int | None = None
+    countdown_seconds: int | None = None  # opponent disconnect countdown
 
     @staticmethod
     def from_pieces(pieces: list[Piece], game_over: bool, rows: int, cols: int,
