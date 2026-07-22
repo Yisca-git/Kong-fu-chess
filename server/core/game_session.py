@@ -10,8 +10,8 @@ from realtime.real_time_arbiter import RealTimeArbiter
 from engine.game_engine import GameEngine
 from engine.arrival_resolver import ArrivalResolver
 from engine.score_keeper import ScoreKeeper
-from view.setup import build_starting_board
-from server.protocol import encode_snapshot
+from engine.setup import build_starting_board
+from server.network.protocol import encode_snapshot
 
 TICK_MS = 33  # ~30 fps game-loop tick
 

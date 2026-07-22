@@ -1,7 +1,7 @@
 """Authentication helpers: register, login, password hashing."""
 from __future__ import annotations
 import bcrypt
-from server.db import get_user, create_user
+from server.db.db import get_user, create_user
 
 
 def register(username: str, password: str) -> tuple[bool, str]:

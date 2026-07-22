@@ -18,7 +18,7 @@ from engine.game_engine import GameEngine
 from engine.arrival_resolver import ArrivalResolver
 from engine.score_keeper import ScoreKeeper
 from input.controller import Controller
-from view.setup import build_starting_board
+from engine.setup import build_starting_board
 from view.sprites.sprite_library import SpriteLibrary
 from view.renderer import Renderer
 from view.game_window import GameWindow
